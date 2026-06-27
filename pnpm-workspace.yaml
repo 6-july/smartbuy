@@ -1,0 +1,15 @@
+packages:
+  - "backend/*"
+
+onlyBuiltDependencies:
+  - esbuild
+
+ignoredBuiltDependencies:
+  - "@scarf/scarf"
+allowBuilds:
+  '@scarf/scarf': false
+  esbuild: true
+
+overrides:
+  multer: ^2.2.0
+  js-yaml: ^4.1.2

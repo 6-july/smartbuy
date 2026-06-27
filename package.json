@@ -1,0 +1,11 @@
+{
+  "name": "smartbuy",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "pnpm --filter @smartbuy/ai build && pnpm --filter @smartbuy/bff build",
+    "test": "pnpm --filter @smartbuy/ai test && pnpm --filter @smartbuy/bff test",
+    "dev:bff": "pnpm --filter @smartbuy/ai build && pnpm --filter @smartbuy/bff start:dev",
+    "docs:api": "pnpm --filter @smartbuy/ai build && pnpm --filter @smartbuy/bff docs:generate"
+  }
+}

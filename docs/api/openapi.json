@@ -1,0 +1,778 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "检查服务和数据库连接",
+        "tags": [
+          "健康检查"
+        ]
+      }
+    },
+    "/api/auth/wechat-login": {
+      "post": {
+        "operationId": "login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WechatLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "使用微信登录 code 登录或注册",
+        "tags": [
+          "登录"
+        ]
+      }
+    },
+    "/api/merchant/scan": {
+      "post": {
+        "operationId": "scan",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanMerchantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "解析商家太阳码并按登录态返回会话",
+        "tags": [
+          "商家"
+        ]
+      }
+    },
+    "/api/merchant/{merchantId}/guide-info": {
+      "get": {
+        "operationId": "guideInfo",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取商家导购页信息并复用固定会话",
+        "tags": [
+          "商家"
+        ]
+      }
+    },
+    "/api/admin/merchants": {
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMerchantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "创建商家",
+        "tags": [
+          "内部管理-商家"
+        ]
+      }
+    },
+    "/api/admin/merchants/{merchantId}/solar-code": {
+      "post": {
+        "operationId": "solarCode",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merchantId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "生成商家太阳码 PNG",
+        "tags": [
+          "内部管理-商家"
+        ]
+      }
+    },
+    "/api/admin/products/import": {
+      "post": {
+        "operationId": "importProducts",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportProductsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "幂等导入标准化商品列表",
+        "tags": [
+          "内部管理-商品"
+        ]
+      }
+    },
+    "/api/admin/products": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merchantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "saleStatus",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "on_sale",
+                "off_sale",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "分页查询商品",
+        "tags": [
+          "内部管理-商品"
+        ]
+      }
+    },
+    "/api/admin/products/{productId}": {
+      "get": {
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "查询商品详情",
+        "tags": [
+          "内部管理-商品"
+        ]
+      }
+    },
+    "/api/admin/products/{productId}/status": {
+      "patch": {
+        "operationId": "updateStatus",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "修改商品销售状态",
+        "tags": [
+          "内部管理-商品"
+        ]
+      }
+    },
+    "/api/conversations": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "keyword",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前用户历史商家会话",
+        "tags": [
+          "会话"
+        ]
+      }
+    },
+    "/api/conversation/{conversationId}/messages": {
+      "get": {
+        "operationId": "messages",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前用户会话消息",
+        "tags": [
+          "会话"
+        ]
+      }
+    },
+    "/api/conversation/{conversationId}/message": {
+      "post": {
+        "operationId": "send",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送消息并获取 AI 导购回复和商品卡片",
+        "tags": [
+          "会话"
+        ]
+      }
+    },
+    "/api/admin/conversations": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merchantId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "按商家或用户分页查看会话",
+        "tags": [
+          "内部管理-会话"
+        ]
+      }
+    },
+    "/api/admin/conversations/{conversationId}/messages": {
+      "get": {
+        "operationId": "messages",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "查看指定会话消息",
+        "tags": [
+          "内部管理-会话"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "SmartBuy 服务端 API",
+    "description": "智能导购小程序 MVP 服务端接口",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "adminToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-admin-token"
+      }
+    },
+    "schemas": {
+      "WechatUserInfoDto": {
+        "type": "object",
+        "properties": {
+          "nickname": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "WechatLoginDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "wx.login 返回的一次性 code"
+          },
+          "userInfo": {
+            "$ref": "#/components/schemas/WechatUserInfoDto"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "ScanMerchantDto": {
+        "type": "object",
+        "properties": {
+          "scene": {
+            "type": "string",
+            "example": "m_abcd1234"
+          }
+        },
+        "required": [
+          "scene"
+        ]
+      },
+      "CreateMerchantDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "bannerImage": {
+            "type": "string"
+          },
+          "miniProgramAppId": {
+            "type": "string"
+          },
+          "recommendQuestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "miniProgramAppId"
+        ]
+      },
+      "ProductImportItemDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "example": "youzan"
+          },
+          "sourceShopId": {
+            "type": "string"
+          },
+          "sourceProductId": {
+            "type": "string"
+          },
+          "alias": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayPrice": {
+            "type": "number"
+          },
+          "minPrice": {
+            "type": "number"
+          },
+          "maxPrice": {
+            "type": "number"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sales": {
+            "type": "number"
+          },
+          "isRecommended": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "aiText": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "sourceProductId",
+          "category",
+          "title",
+          "displayPrice",
+          "minPrice",
+          "maxPrice",
+          "images",
+          "sales",
+          "isRecommended",
+          "options",
+          "tags",
+          "aiText"
+        ]
+      },
+      "ImportProductsDto": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string"
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImportItemDto"
+            }
+          },
+          "deactivateMissing": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "merchantId",
+          "products"
+        ]
+      },
+      "Object": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateProductStatusDto": {
+        "type": "object",
+        "properties": {
+          "saleStatus": {
+            "type": "string",
+            "enum": [
+              "on_sale",
+              "off_sale",
+              "deleted"
+            ]
+          }
+        },
+        "required": [
+          "saleStatus"
+        ]
+      },
+      "SendMessageDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "example": "200元以内有什么抹茶蛋糕？"
+          },
+          "clientMessageId": {
+            "type": "string",
+            "description": "客户端为每次发送生成的幂等 ID"
+          }
+        },
+        "required": [
+          "content",
+          "clientMessageId"
+        ]
+      }
+    }
+  }
+}
