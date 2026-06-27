@@ -16,7 +16,10 @@ export class EmbeddingService {
 
   async embed(text: string): Promise<number[] | null> {
     if (!this.isConfigured()) return null;
-    const response = await fetch(this.config.get("embeddingApiUrl", { infer: true }), {
+    const apiUrl = this.config.get("embeddingApiUrl", { infer: true });
+    const isMultimodal = apiUrl.includes("/multimodal");
+    const input = isMultimodal ? [{ type: "text", text }] : text;
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         authorization: `Bearer ${this.config.get("embeddingApiKey", { infer: true })}`,
@@ -24,13 +27,17 @@ export class EmbeddingService {
       },
       body: JSON.stringify({
         model: this.config.get("embeddingModel", { infer: true }),
-        input: text,
+        input,
       }),
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error(`Embedding API returned ${response.status}`);
-    const body = (await response.json()) as { data?: Array<{ embedding?: number[] }> };
-    const embedding = body.data?.[0]?.embedding;
+    const body = (await response.json()) as {
+      data?: Array<{ embedding?: number[] }> | { embedding?: number[] };
+    };
+    const embedding = Array.isArray(body.data)
+      ? body.data[0]?.embedding
+      : body.data?.embedding;
     if (!embedding?.length || embedding.some((value) => !Number.isFinite(value))) {
       throw new Error("Embedding API returned an invalid vector");
     }
