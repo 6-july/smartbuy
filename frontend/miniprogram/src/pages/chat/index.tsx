@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react";
-import { Input, ScrollView, Text, View } from "@tarojs/components";
+import { useEffect, useRef, useState } from "react";
+import { Input, ScrollView, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
 import ProductCard from "@/components/product-card";
 import { getGuideInfo, getMessages, scanMerchant, sendMessage } from "@/services/api";
-import type { ChatMessage, GuideInfo } from "@/types";
+import type { ChatMessage, GuideInfo, ProductCardData } from "@/types";
 import { getToken } from "@/utils/auth";
 import "./index.scss";
+
+function formatPrice(amount: number | null) {
+  if (amount == null) return null;
+  return `¥${Number(amount) % 1 ? Number(amount).toFixed(2) : amount}`;
+}
+
+function getAvailableSpecs(product: ProductCardData | null) {
+  return (product?.specs || []).filter((spec) => (spec.values || []).length > 0);
+}
 
 export default function ChatPage() {
   const router = useRouter();
@@ -20,8 +29,56 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [scrollAnchor, setScrollAnchor] = useState("chat-end");
+  const [scrollAnchor, setScrollAnchor] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [productScrollIndex, setProductScrollIndex] = useState<Record<string, number>>({});
+  const [specsProduct, setSpecsProduct] = useState<ProductCardData | null>(null);
+  const [specsModalClosing, setSpecsModalClosing] = useState(false);
+  const scrollDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const specsCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearScrollAnchor = () => {
+    if (scrollDelayTimer.current) clearTimeout(scrollDelayTimer.current);
+    if (scrollClearTimer.current) clearTimeout(scrollClearTimer.current);
+    scrollDelayTimer.current = null;
+    scrollClearTimer.current = null;
+    setScrollAnchor("");
+  };
+
+  const triggerScroll = (anchor: string, delay = 0) => {
+    if (scrollDelayTimer.current) clearTimeout(scrollDelayTimer.current);
+    if (scrollClearTimer.current) clearTimeout(scrollClearTimer.current);
+    const run = () => {
+      if (scrollClearTimer.current) clearTimeout(scrollClearTimer.current);
+      setScrollAnchor(anchor);
+      scrollClearTimer.current = setTimeout(() => setScrollAnchor(""), 360);
+    };
+    if (delay > 0) {
+      scrollDelayTimer.current = setTimeout(run, delay);
+      return;
+    }
+    run();
+  };
+
+  const openSpecsModal = (product: ProductCardData) => {
+    clearScrollAnchor();
+    if (specsCloseTimer.current) clearTimeout(specsCloseTimer.current);
+    specsCloseTimer.current = null;
+    setSpecsModalClosing(false);
+    setSpecsProduct(product);
+  };
+
+  const closeSpecsModal = () => {
+    clearScrollAnchor();
+    if (!specsProduct || specsModalClosing) return;
+    setSpecsModalClosing(true);
+    specsCloseTimer.current = setTimeout(() => {
+      setSpecsProduct(null);
+      setSpecsModalClosing(false);
+      specsCloseTimer.current = null;
+    }, 180);
+  };
 
   const loadPage = async () => {
     if (!getToken()) {
@@ -63,7 +120,7 @@ export default function ChatPage() {
       setGuide(info);
       setConversationId(targetConversationId);
       setMessages(history.list);
-      setTimeout(() => setScrollAnchor("chat-end"), 80);
+      triggerScroll("chat-end", 80);
     } catch (err) {
       setError(err instanceof Error ? err.message : "导购服务加载失败");
     } finally {
@@ -74,6 +131,12 @@ export default function ChatPage() {
   useEffect(() => {
     void loadPage();
   }, [merchantId]);
+
+  useEffect(() => () => {
+    if (scrollDelayTimer.current) clearTimeout(scrollDelayTimer.current);
+    if (scrollClearTimer.current) clearTimeout(scrollClearTimer.current);
+    if (specsCloseTimer.current) clearTimeout(specsCloseTimer.current);
+  }, []);
 
   const submit = async (preset?: string) => {
     const content = (preset ?? inputValue).trim();
@@ -91,7 +154,7 @@ export default function ChatPage() {
     setInputValue("");
     setMessages((current) => [...current, userMessage]);
     setSending(true);
-    setScrollAnchor(`message-${clientMessageId}`);
+    triggerScroll(`message-${clientMessageId}`);
     try {
       const response = await sendMessage(conversationId, content, clientMessageId);
       setMessages((current) => [
@@ -105,7 +168,7 @@ export default function ChatPage() {
           createdAt: new Date().toISOString(),
         },
       ]);
-      setScrollAnchor("chat-end");
+      triggerScroll("chat-end");
     } catch (err) {
       setMessages((current) => current.map((item) => item.id === clientMessageId ? { ...item, pending: false } : item));
       Taro.showToast({
@@ -135,6 +198,7 @@ export default function ChatPage() {
   }
 
   const { merchant } = guide;
+  const availableSpecs = getAvailableSpecs(specsProduct);
 
   return (
     <View className="page-shell chat-page">
@@ -146,9 +210,9 @@ export default function ChatPage() {
         className="chat-scroll"
         scrollY
         scrollWithAnimation
-        scrollIntoView={scrollAnchor}
         enhanced
         showScrollbar={false}
+        {...(scrollAnchor ? { scrollIntoView: scrollAnchor } : {})}
       >
         {guide.recommendQuestions.length > 0 && (
           <View className="question-strip">
@@ -165,6 +229,8 @@ export default function ChatPage() {
 
         <View className="message-list">
           {messages.map((message, index) => {
+            const products = message.products || [];
+            const activeProductIndex = productScrollIndex[message.id] || 0;
             const showDivider =
               message.isCurrentSession &&
               index > 0 &&
@@ -186,9 +252,38 @@ export default function ChatPage() {
                     <View className={`message-bubble message-bubble--${message.role} ${message.pending ? "message-bubble--pending" : ""}`}>
                       <Text>{message.content}</Text>
                     </View>
-                    {message.products.length > 0 && (
-                      <View className="message-products">
-                        {message.products.map((product) => <ProductCard product={product} key={product.productId} />)}
+                    {products.length > 0 && (
+                      <View className="message-products-wrap">
+                        <Swiper
+                          className="message-products"
+                          current={activeProductIndex}
+                          circular={products.length > 1}
+                          onChange={(event) => {
+                            const nextIndex = event.detail.current;
+                            setProductScrollIndex((current) => current[message.id] === nextIndex ? current : {
+                              ...current,
+                              [message.id]: nextIndex,
+                            });
+                          }}
+                        >
+                          {products.map((product) => (
+                            <SwiperItem key={product.productId}>
+                              <View className="message-products__item">
+                                <ProductCard product={product} variant="compact" onShowSpecs={openSpecsModal} />
+                              </View>
+                            </SwiperItem>
+                          ))}
+                        </Swiper>
+                        {products.length > 1 && (
+                          <View className="message-products__pager">
+                            {products.map((product, productIndex) => (
+                              <View
+                                className={`message-products__pager-dot ${productIndex === activeProductIndex ? "message-products__pager-dot--active" : ""}`}
+                                key={product.productId}
+                              />
+                            ))}
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
@@ -219,7 +314,7 @@ export default function ChatPage() {
             onKeyboardHeightChange={(event) => {
               const height = event.detail.height || 0;
               setKeyboardHeight(height);
-              if (height > 0) setTimeout(() => setScrollAnchor("chat-end"), 80);
+              if (height > 0) triggerScroll("chat-end", 80);
             }}
             onBlur={() => setKeyboardHeight(0)}
             placeholder="继续问问商品..."
@@ -233,6 +328,44 @@ export default function ChatPage() {
           </View>
         </View>
       </View>
+
+      {specsProduct && (
+        <View className={`product-spec-modal ${specsModalClosing ? "product-spec-modal--closing" : ""}`} onClick={closeSpecsModal}>
+          <View className="product-spec-modal__panel" onClick={(event) => event.stopPropagation()}>
+            <View className="product-spec-modal__header">
+              <View className="product-spec-modal__title-wrap">
+                <Text className="product-spec-modal__title">全部规格</Text>
+                <Text className="product-spec-modal__subtitle">{specsProduct.name}</Text>
+              </View>
+              <Text
+                className="product-spec-modal__close"
+                onClick={(event) => { event.stopPropagation(); closeSpecsModal(); }}
+              >×</Text>
+            </View>
+            <ScrollView className="product-spec-modal__content" scrollY showScrollbar={false}>
+              {availableSpecs.length > 0 ? (
+                availableSpecs.map((spec) => (
+                  <View className="product-spec-modal__group" key={spec.name}>
+                    <Text className="product-spec-modal__group-title">{spec.name}</Text>
+                    <View className="product-spec-modal__items">
+                      {(spec.values || []).map((value) => (
+                        <View className="product-spec-modal__item" key={value.label}>
+                          <Text className="product-spec-modal__item-name">{value.label}</Text>
+                          {value.price != null && (
+                            <Text className="product-spec-modal__item-price">{formatPrice(value.price)}</Text>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text className="product-spec-modal__empty">暂无更多规格</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

@@ -203,9 +203,8 @@ export default function HomePage() {
                     <Text className="conversation-item__name">{item.merchantName}</Text>
                     <Text className="conversation-item__time">{formatTime(item.lastMessageTime)}</Text>
                   </View>
-                  <Text className="conversation-item__message">{item.lastMessage || "开始咨询商品"}</Text>
                 </View>
-                <Text className="conversation-item__arrow">›</Text>
+                <View className="conversation-item__arrow" />
               </View>
             ))}
           </View>

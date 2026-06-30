@@ -12,7 +12,7 @@ interface CustomNavProps {
 
 function getNavMetrics() {
   if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
-    return { statusBarHeight: 12, navBarHeight: 44 };
+    return { statusBarHeight: 12, navBarHeight: 44, menuButtonHeight: 32 };
   }
 
   try {
@@ -25,10 +25,11 @@ function getNavMetrics() {
 
     return {
       statusBarHeight,
+      menuButtonHeight,
       navBarHeight: Math.max(44, Math.ceil(menuButtonBottom - statusBarHeight + navBottomGap)),
     };
   } catch {
-    return { statusBarHeight: 20, navBarHeight: 44 };
+    return { statusBarHeight: 20, navBarHeight: 44, menuButtonHeight: 32 };
   }
 }
 
@@ -39,7 +40,7 @@ export default function CustomNav({
   onBack,
   children,
 }: CustomNavProps) {
-  const { statusBarHeight, navBarHeight } = getNavMetrics();
+  const { statusBarHeight, navBarHeight, menuButtonHeight } = getNavMetrics();
 
   const handleBack = () => {
     if (onBack) return onBack();
@@ -58,7 +59,12 @@ export default function CustomNav({
       <View className="custom-nav__bar" style={{ height: `${navBarHeight}px` }}>
         <View className="custom-nav__side">
           {showBack && (
-            <View className="custom-nav__back" onClick={handleBack} aria-label="返回">
+            <View
+              className="custom-nav__back"
+              style={{ width: `${menuButtonHeight}px`, height: `${menuButtonHeight}px` }}
+              onClick={handleBack}
+              aria-label="返回"
+            >
               <View className="custom-nav__back-icon" />
             </View>
           )}

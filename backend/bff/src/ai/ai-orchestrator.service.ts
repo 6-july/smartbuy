@@ -1,5 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { ChatMessage, parseSearchIntent, sanitizeGuideReply } from "@smartbuy/ai";
+import {
+  buildDeterministicReply,
+  ChatMessage,
+  parseSearchIntent,
+  sanitizeGuideReply,
+} from "@smartbuy/ai";
 import { ChatModelService } from "./chat-model.service";
 import { RetrievalService, RetrievedProduct } from "./retrieval.service";
 
@@ -29,22 +34,31 @@ export class AiOrchestratorService {
         input.history,
         candidates,
         totalProducts,
+        intent,
       );
     } catch (err) {
       console.error("[AiOrchestrator] chat.reply failed:", err);
-      rawReply = {
-        reply:
-          candidates.length > 0
-            ? "找到了一些比较匹配的商品，你可以看看："
-            : "导购助手暂时开小差了，请稍后再试。",
-        productIds: candidates.slice(0, 3).map((item) => item.id),
-      };
+      rawReply = buildDeterministicReply(candidates, intent);
     }
     const reply = sanitizeGuideReply(rawReply, candidates);
     const selected = new Set(reply.productIds);
+    const selectedCandidates = candidates.filter((candidate) => selected.has(candidate.id));
+    const finalReply = isGenericReply(reply.reply) && selectedCandidates.length > 0
+      ? buildDeterministicReply(selectedCandidates, intent).reply
+      : reply.reply;
     return {
-      reply: reply.reply,
+      reply: finalReply,
       products: retrieved.filter((item) => selected.has(item.row.id)),
     };
   }
+}
+
+function isGenericReply(reply: string): boolean {
+  const normalized = reply.replace(/\s/g, "");
+  return (
+    normalized.length <= 28 ||
+    /找到.*匹配.*商品/.test(normalized) ||
+    /可以看看/.test(normalized) ||
+    /下面这些商品/.test(normalized)
+  );
 }
