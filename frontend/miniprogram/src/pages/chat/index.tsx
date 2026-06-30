@@ -115,7 +115,7 @@ export default function ChatPage() {
     setError("");
     try {
       const info = await getGuideInfo(merchantId);
-      const targetConversationId = routeConversationId || info.conversationId;
+      const targetConversationId = info.conversationId;
       const history = await getMessages(targetConversationId);
       setGuide(info);
       setConversationId(targetConversationId);
@@ -228,22 +228,11 @@ export default function ChatPage() {
         )}
 
         <View className="message-list">
-          {messages.map((message, index) => {
+          {messages.map((message) => {
             const products = message.products || [];
             const activeProductIndex = productScrollIndex[message.id] || 0;
-            const showDivider =
-              message.isCurrentSession &&
-              index > 0 &&
-              !messages[index - 1].isCurrentSession;
             return (
               <View key={message.id}>
-                {showDivider && (
-                  <View className="session-divider">
-                    <View className="session-divider__line" />
-                    <Text className="session-divider__text">以上为历史消息</Text>
-                    <View className="session-divider__line" />
-                  </View>
-                )}
                 <View
                   id={`message-${message.id}`}
                   className={`message-row message-row--${message.role}`}

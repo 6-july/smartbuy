@@ -38,9 +38,17 @@ export class AiOrchestratorService {
       );
     } catch (err) {
       console.error("[AiOrchestrator] chat.reply failed:", err);
-      rawReply = buildDeterministicReply(candidates, intent);
+      rawReply = candidates.length > 0
+        ? buildDeterministicReply(candidates, intent)
+        : { reply: "不好意思，我刚刚走了一下神～您想了解什么蛋糕呢？可以告诉我口味、预算或者用途，我来帮您推荐哦！😊", productIds: [] };
     }
     const reply = sanitizeGuideReply(rawReply, candidates);
+    if (reply.productIds.length === 0 && candidates.length > 0) {
+      const mentioned = candidates.filter((c) => isMentioned(c.title, reply.reply));
+      if (mentioned.length > 0) {
+        reply.productIds = mentioned.slice(0, 5).map((c) => c.id);
+      }
+    }
     const selected = new Set(reply.productIds);
     const selectedCandidates = candidates.filter((candidate) => selected.has(candidate.id));
     const finalReply = isGenericReply(reply.reply) && selectedCandidates.length > 0
@@ -51,6 +59,19 @@ export class AiOrchestratorService {
       products: retrieved.filter((item) => selected.has(item.row.id)),
     };
   }
+}
+
+function coreName(title: string): string {
+  return title
+    .replace(/[（(][^）)]*[）)]/g, "")
+    .replace(/【[^】]*】/g, "")
+    .trim();
+}
+
+function isMentioned(title: string, text: string): boolean {
+  if (text.includes(title)) return true;
+  const core = coreName(title);
+  return core.length >= 4 && text.includes(core);
 }
 
 function isGenericReply(reply: string): boolean {

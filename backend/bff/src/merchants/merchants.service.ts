@@ -98,19 +98,7 @@ export class MerchantsService {
     return merchant;
   }
 
-  private static readonly SESSION_TIMEOUT_MINUTES = 30;
-
   private async getOrCreateConversation(userId: string, merchantId: string): Promise<string> {
-    const recent = await this.database.query<{ id: string }>(
-      `SELECT id FROM conversations
-       WHERE user_id = $1 AND merchant_id = $2 AND status = 'active'
-         AND last_message_time > now() - interval '1 minute' * $3
-       ORDER BY last_message_time DESC
-       LIMIT 1`,
-      [userId, merchantId, MerchantsService.SESSION_TIMEOUT_MINUTES],
-    );
-    if (recent.rows[0]) return recent.rows[0].id;
-
     const created = await this.database.query<{ id: string }>(
       `INSERT INTO conversations (user_id, merchant_id) VALUES ($1, $2) RETURNING id`,
       [userId, merchantId],

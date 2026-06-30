@@ -506,25 +506,6 @@
 @keyframes spec-sheet-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes spec-sheet-slide-down { from { transform: translateY(0); } to { transform: translateY(100%); } }
 
-.session-divider {
-  display: flex;
-  align-items: center;
-  padding: 14px 10px 24px;
-  gap: 12px;
-}
-
-.session-divider__line {
-  flex: 1;
-  height: 1px;
-  background: rgba(214, 177, 150, 0.42);
-}
-
-.session-divider__text {
-  color: #b0917d;
-  font-size: 22px;
-  white-space: nowrap;
-}
-
 @media screen and (max-width: 370px) {
   .chat-header .custom-nav__title { max-width: 300px; }
   .message-list { padding-right: 18px; padding-left: 18px; }

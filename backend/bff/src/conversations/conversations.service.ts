@@ -78,19 +78,29 @@ export class ConversationsService {
   async listMessages(conversationId: string, userId: string) {
     const conversation = await this.getOwnedConversation(conversationId, userId);
     const result = await this.database.query<MessageRow>(
-      `SELECT m.* FROM messages m
-       JOIN conversations c ON c.id = m.conversation_id
-       WHERE c.user_id = $1 AND c.merchant_id = $2 AND c.status = 'active'
-       ORDER BY m.created_at ASC
+      `SELECT * FROM messages
+       WHERE conversation_id = $1
+       ORDER BY created_at ASC
        LIMIT 200`,
-      [userId, conversation.merchant_id],
+      [conversationId],
     );
-    return {
-      list: result.rows.map((row) => ({
-        ...this.mapMessage(row),
-        isCurrentSession: row.conversation_id === conversationId,
-      })),
-    };
+    if (result.rows.length === 0) {
+      const welcome = await this.createWelcomeMessage(conversation);
+      return { list: [this.mapMessage(welcome)] };
+    }
+    return { list: result.rows.map((row) => this.mapMessage(row)) };
+  }
+
+  private async createWelcomeMessage(conversation: ConversationRow): Promise<MessageRow> {
+    const greeting = `你好呀！欢迎来到「${conversation.merchant_name}」～😊 我是你的智能导购助手，可以帮你推荐商品、查看价格和规格。告诉我你想找什么，或者直接问我吧！`;
+    const result = await this.database.query<MessageRow>(
+      `INSERT INTO messages (
+         conversation_id, user_id, merchant_id, role, content, message_type
+       ) VALUES ($1, $2, $3, 'assistant', $4, 'text')
+       RETURNING *`,
+      [conversation.id, conversation.user_id, conversation.merchant_id, greeting],
+    );
+    return result.rows[0];
   }
 
   async send(conversationId: string, userId: string, dto: SendMessageDto) {

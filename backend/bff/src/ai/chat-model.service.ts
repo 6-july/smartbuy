@@ -33,7 +33,7 @@ export class ChatModelService {
       totalProducts > 0 ? `店铺共有 ${totalProducts} 款商品在售。` : "",
       candidates.length > 0
         ? [
-            "下面是根据用户需求检索到的候选商品，只能从中推荐，不能编造商品、价格、规格、库存或跳转信息。",
+            "下面是根据用户需求检索到的候选商品，严格只能提及和推荐下面列表中的商品，不要提及之前对话中出现过但不在当前候选列表中的商品。不能编造商品、价格、规格、库存或跳转信息。",
             `候选商品：${JSON.stringify(candidates.map((c) => ({ id: c.id, title: c.title, price: c.displayPrice, minPrice: c.minPrice, maxPrice: c.maxPrice, category: c.category, priceOptions: getCandidatePriceOptions(c) })))}`,
           ].join("\n")
         : "当前没有检索到候选商品。如果用户在闲聊或打招呼，请友好回应并引导用户描述想要的商品类型、口味或预算。如果用户在找具体商品但没有匹配结果，请告知暂无相关商品并建议换个关键词或浏览热门推荐。",
@@ -53,8 +53,7 @@ export class ChatModelService {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
+        temperature: 0.3,
         messages: [
           { role: "system", content: system },
           ...history.slice(-6),
@@ -72,9 +71,15 @@ export class ChatModelService {
     };
     const content = body.choices?.[0]?.message?.content?.trim();
     if (!content) {
-      console.error("[ChatModel] empty content, full body:", JSON.stringify(body));
+      console.warn("[ChatModel] empty content, full body:", JSON.stringify(body));
       throw new Error("Chat API returned empty content");
     }
-    return JSON.parse(content.replace(/^```json\s*|\s*```$/g, "")) as GuideReply;
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]) as GuideReply;
+      } catch { /* fall through to text reply */ }
+    }
+    return { reply: content, productIds: [] };
   }
 }
