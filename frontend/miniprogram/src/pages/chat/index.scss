@@ -18,10 +18,15 @@
     color: #2b170c;
   }
 
+  .custom-nav__bar {
+    justify-content: flex-start;
+    padding-right: 180px;
+    padding-left: 104px;
+  }
+
   .custom-nav__title {
-    max-width: 340px;
-    font-size: 30px;
-    line-height: 42px;
+    max-width: 100%;
+    font-size: 36px;
   }
 
   .custom-nav__side {
@@ -631,6 +636,5 @@
 @keyframes spec-sheet-slide-down { from { transform: translateY(0); } to { transform: translateY(100%); } }
 
 @media screen and (max-width: 370px) {
-  .chat-header .custom-nav__title { max-width: 300px; }
   .message-list { padding-right: 18px; padding-left: 18px; }
 }

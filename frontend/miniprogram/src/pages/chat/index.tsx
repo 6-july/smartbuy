@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Input, ScrollView, Swiper, SwiperItem, Text, View } from "@tarojs/components";
-import Taro, { useRouter } from "@tarojs/taro";
+import Taro, { useDidShow, useRouter, useShareAppMessage } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
 import ProductCard from "@/components/product-card";
 import { getGuideInfo, getMessages, scanMerchant, sendMessage } from "@/services/api";
@@ -61,6 +61,23 @@ export default function ChatPage() {
   const scrollClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const specsCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // const voiceManagerRef = useRef<WechatSIRecordRecognitionManager | null>(null);
+
+  useShareAppMessage(() => {
+    const merchant = guide?.merchant;
+    return {
+      title: merchant ? `${merchant.name} - 智能导购` : "智能导购",
+      path: merchant?.id
+        ? `/pages/chat/index?merchantId=${encodeURIComponent(merchant.id)}`
+        : "/pages/index/index",
+      ...(merchant?.logo ? { imageUrl: merchant.logo } : {}),
+    };
+  });
+
+  useDidShow(() => {
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+      void Taro.showShareMenu({ withShareTicket: true });
+    }
+  });
 
   const clearScrollAnchor = () => {
     if (scrollDelayTimer.current) clearTimeout(scrollDelayTimer.current);

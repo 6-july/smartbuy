@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Image, Input, Text, View } from "@tarojs/components";
-import Taro, { useDidShow, useLoad } from "@tarojs/taro";
+import Taro, { useDidShow, useLoad, useShareAppMessage } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
 import scanIcon from "@/assets/scan-icon.svg";
 import { listConversations, scanMerchant } from "@/services/api";
@@ -12,12 +12,12 @@ function formatTime(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
   const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   if (date.toDateString() === now.toDateString()) return time;
-  if (diff < 172800000) return `昨天 ${time}`;
-  if (diff < 259200000) return `前天 ${time}`;
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return `昨天 ${time}`;
+  return `${date.getMonth() + 1}/${date.getDate()} ${time}`;
 }
 
 function extractScene(result: Taro.scanCode.SuccessCallbackResult) {
@@ -42,7 +42,7 @@ export default function HomePage() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    setLoading(conversations.length === 0);
     try {
       const result = await listConversations(search);
       setConversations(result.list);
@@ -53,7 +53,17 @@ export default function HomePage() {
     }
   };
 
-  useDidShow(() => void loadConversations());
+  useShareAppMessage(() => ({
+    title: "智能导购",
+    path: "/pages/index/index",
+  }));
+
+  useDidShow(() => {
+    if (Taro.getEnv() === Taro.ENV_TYPE.WEAPP) {
+      void Taro.showShareMenu({ withShareTicket: true });
+    }
+    void loadConversations();
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => void loadConversations(keyword), 280);
