@@ -18,6 +18,8 @@ interface ConversationRow {
   merchant_logo: string | null;
   merchant_description: string | null;
   merchant_app_id: string;
+  merchant_phone: string | null;
+  merchant_industry: string;
   merchant_status: string;
 }
 
@@ -53,6 +55,8 @@ export class ConversationsService {
                 c.*, m.name AS merchant_name, m.logo AS merchant_logo,
                 m.description AS merchant_description,
                 m.mini_program_app_id AS merchant_app_id,
+                m.phone AS merchant_phone,
+                m.industry AS merchant_industry,
                 m.status AS merchant_status
          FROM conversations c
          JOIN merchants m ON m.id = c.merchant_id
@@ -161,12 +165,14 @@ export class ConversationsService {
         id: conversation.merchant_id,
         name: conversation.merchant_name,
         description: conversation.merchant_description,
+        phone: conversation.merchant_phone,
+        industry: conversation.merchant_industry,
       },
       question: dto.content,
       history,
     });
 
-    const cards = guide.products.map(({ row }) => {
+    let cards = guide.products.map(({ row }) => {
       const product = this.products.toProduct(row);
       const images = (product.images as Array<{ url?: string }>)
         .map((img) => img.url)
@@ -193,6 +199,16 @@ export class ConversationsService {
         miniProgramParams: product.miniProgramParams,
       };
     });
+
+    if (cards.length === 0 && guide.reply) {
+      const lastAssistant = historyResult.rows.find(
+        (m) => m.role === "assistant" && Array.isArray(m.products) && m.products.length > 0,
+      );
+      if (lastAssistant) {
+        const prevProducts = lastAssistant.products as Array<{ name?: string; [k: string]: unknown }>;
+        cards = prevProducts.filter((p) => p.name && guide.reply.includes(p.name)).slice(0, 3) as typeof cards;
+      }
+    }
     const saved = await this.database.transaction(async (client) => {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO messages (
@@ -236,6 +252,8 @@ export class ConversationsService {
       `SELECT c.*, m.name AS merchant_name, m.logo AS merchant_logo,
               m.description AS merchant_description,
               m.mini_program_app_id AS merchant_app_id,
+              m.phone AS merchant_phone,
+              m.industry AS merchant_industry,
               m.status AS merchant_status,
               count(*) OVER() AS total_count
        FROM conversations c
@@ -274,6 +292,8 @@ export class ConversationsService {
       `SELECT c.*, m.name AS merchant_name, m.logo AS merchant_logo,
               m.description AS merchant_description,
               m.mini_program_app_id AS merchant_app_id,
+              m.phone AS merchant_phone,
+              m.industry AS merchant_industry,
               m.status AS merchant_status
        FROM conversations c
        JOIN merchants m ON m.id = c.merchant_id

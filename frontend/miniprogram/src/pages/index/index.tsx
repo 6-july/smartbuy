@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Input, Text, View } from "@tarojs/components";
-import Taro, { useDidShow, useLoad, usePullDownRefresh } from "@tarojs/taro";
+import Taro, { useDidShow, useLoad } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
 import scanIcon from "@/assets/scan-icon.svg";
 import { listConversations, scanMerchant } from "@/services/api";
@@ -54,10 +54,6 @@ export default function HomePage() {
   };
 
   useDidShow(() => void loadConversations());
-  usePullDownRefresh(async () => {
-    await loadConversations();
-    Taro.stopPullDownRefresh();
-  });
 
   useEffect(() => {
     const timer = setTimeout(() => void loadConversations(keyword), 280);

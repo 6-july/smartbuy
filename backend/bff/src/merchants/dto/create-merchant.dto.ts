@@ -33,4 +33,16 @@ export class CreateMerchantDto {
   @IsArray()
   @IsString({ each: true })
   recommendQuestions?: string[];
+
+  @ApiPropertyOptional({ description: "客服电话" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  phone?: string;
+
+  @ApiPropertyOptional({ description: "行业（如 蛋糕烘焙、鲜花、水果）", default: "综合零售" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  industry?: string;
 }

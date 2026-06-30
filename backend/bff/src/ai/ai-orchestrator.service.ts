@@ -16,7 +16,7 @@ export class AiOrchestratorService {
   ) {}
 
   async guide(input: {
-    merchant: { id: string; name: string; description: string | null };
+    merchant: { id: string; name: string; description: string | null; phone?: string | null; industry?: string };
     question: string;
     history: ChatMessage[];
   }): Promise<{ reply: string; products: RetrievedProduct[] }> {
@@ -38,9 +38,10 @@ export class AiOrchestratorService {
       );
     } catch (err) {
       console.error("[AiOrchestrator] chat.reply failed:", err);
+      const industry = input.merchant.industry || "商品";
       rawReply = candidates.length > 0
         ? buildDeterministicReply(candidates, intent)
-        : { reply: "不好意思，我刚刚走了一下神～您想了解什么蛋糕呢？可以告诉我口味、预算或者用途，我来帮您推荐哦！😊", productIds: [] };
+        : { reply: `不好意思，我刚刚走了一下神～您想了解什么${industry}呢？可以告诉我口味、预算或者用途，我来帮您推荐哦！😊`, productIds: [] };
     }
     const reply = sanitizeGuideReply(rawReply, candidates);
     if (reply.productIds.length === 0 && candidates.length > 0) {

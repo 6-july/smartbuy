@@ -13,6 +13,8 @@ export interface MerchantRow {
   mini_program_app_id: string;
   scene_code: string;
   recommend_questions: string[];
+  phone: string | null;
+  industry: string;
   status: string;
 }
 
@@ -25,8 +27,8 @@ export class MerchantsService {
     const result = await this.database.query<MerchantRow>(
       `INSERT INTO merchants (
          name, logo, description, banner_image, mini_program_app_id,
-         scene_code, recommend_questions
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+         scene_code, recommend_questions, phone, industry
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
        RETURNING *`,
       [
         dto.name,
@@ -36,6 +38,8 @@ export class MerchantsService {
         dto.miniProgramAppId,
         sceneCode,
         JSON.stringify(dto.recommendQuestions || []),
+        dto.phone || null,
+        dto.industry || "综合零售",
       ],
     );
     return this.mapMerchant(result.rows[0]);
@@ -115,6 +119,8 @@ export class MerchantsService {
       bannerImage: row.banner_image,
       miniProgramAppId: row.mini_program_app_id,
       sceneCode: row.scene_code,
+      phone: row.phone,
+      industry: row.industry,
       status: row.status,
     };
   }
