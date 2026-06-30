@@ -1,5 +1,6 @@
 packages:
   - "backend/*"
+  - "frontend/*"
 
 onlyBuiltDependencies:
   - esbuild
@@ -7,7 +8,13 @@ onlyBuiltDependencies:
 ignoredBuiltDependencies:
   - "@scarf/scarf"
 allowBuilds:
+  '@parcel/watcher': true
   '@scarf/scarf': false
+  '@swc/core': true
+  '@tarojs/binding': true
+  '@tarojs/cli': true
+  core-js: false
+  core-js-pure: false
   esbuild: true
 
 overrides:

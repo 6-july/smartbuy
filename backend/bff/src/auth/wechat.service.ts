@@ -1,6 +1,5 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { createHash } from "node:crypto";
 import { AppException } from "../common/app-exception";
 import { AppEnv } from "../config/env";
 
@@ -11,15 +10,16 @@ interface WechatSession {
 
 @Injectable()
 export class WechatService {
-  constructor(private readonly config: ConfigService<AppEnv, true>) {}
+  private readonly mockEnabled: boolean;
+
+  constructor(private readonly config: ConfigService<AppEnv, true>) {
+    this.mockEnabled = process.env.WECHAT_MOCK_ENABLED === "true";
+  }
 
   async exchangeLoginCode(code: string): Promise<WechatSession> {
-    if (this.config.get("wechatMockEnabled", { infer: true })) {
-      return {
-        openId: `mock_${createHash("sha256").update(code).digest("hex").slice(0, 24)}`,
-      };
+    if (this.mockEnabled) {
+      return { openId: `mock_${code || "open-id"}` };
     }
-
     const query = new URLSearchParams({
       appid: this.config.get("wechatAppId", { infer: true }),
       secret: this.config.get("wechatAppSecret", { infer: true }),
@@ -47,13 +47,6 @@ export class WechatService {
   }
 
   async createUnlimitedCode(scene: string): Promise<Buffer> {
-    if (this.config.get("wechatMockEnabled", { infer: true })) {
-      return Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-        "base64",
-      );
-    }
-
     const tokenQuery = new URLSearchParams({
       grant_type: "client_credential",
       appid: this.config.get("wechatAppId", { infer: true }),

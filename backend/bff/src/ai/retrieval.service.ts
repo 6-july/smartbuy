@@ -16,9 +16,24 @@ export class RetrievalService {
     private readonly embedding: EmbeddingService,
   ) {}
 
+  async countProducts(merchantId: string): Promise<number> {
+    const result = await this.database.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM products
+       WHERE merchant_id = $1 AND sale_status = 'on_sale'
+         AND title NOT ILIKE '%非下单%' AND title NOT ILIKE '%单拍不送%'`,
+      [merchantId],
+    );
+    return Number(result.rows[0]?.count || 0);
+  }
+
   async search(merchantId: string, intent: SearchIntent): Promise<RetrievedProduct[]> {
     const values: unknown[] = [merchantId];
-    const conditions = ["merchant_id = $1", "sale_status = 'on_sale'"];
+    const conditions = [
+      "merchant_id = $1",
+      "sale_status = 'on_sale'",
+      "title NOT ILIKE '%非下单%'",
+      "title NOT ILIKE '%单拍不送%'",
+    ];
     if (intent.priceMax !== null) {
       values.push(intent.priceMax);
       conditions.push(`min_price <= $${values.length}`);

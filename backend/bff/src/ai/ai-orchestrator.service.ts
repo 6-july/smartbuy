@@ -16,14 +16,11 @@ export class AiOrchestratorService {
     history: ChatMessage[];
   }): Promise<{ reply: string; products: RetrievedProduct[] }> {
     const intent = parseSearchIntent(input.question);
-    const retrieved = await this.retrieval.search(input.merchant.id, intent);
+    const [retrieved, totalProducts] = await Promise.all([
+      this.retrieval.search(input.merchant.id, intent),
+      this.retrieval.countProducts(input.merchant.id),
+    ]);
     const candidates = retrieved.map((item) => item.candidate);
-    if (candidates.length === 0) {
-      return {
-        reply: "暂时没有找到相关商品，你可以换个关键词试试。",
-        products: [],
-      };
-    }
     let rawReply;
     try {
       rawReply = await this.chat.reply(
@@ -31,8 +28,10 @@ export class AiOrchestratorService {
         input.question,
         input.history,
         candidates,
+        totalProducts,
       );
-    } catch {
+    } catch (err) {
+      console.error("[AiOrchestrator] chat.reply failed:", err);
       rawReply = {
         reply:
           candidates.length > 0

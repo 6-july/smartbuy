@@ -9,7 +9,8 @@ async function generate(): Promise<void> {
   process.env.DATABASE_URL ||= "postgresql://docs:docs@127.0.0.1:5432/docs";
   process.env.JWT_SECRET ||= "docs-only-secret";
   process.env.ADMIN_SERVICE_TOKEN ||= "docs-only-admin-token";
-  process.env.WECHAT_MOCK_ENABLED ||= "true";
+  process.env.WECHAT_PLATFORM_APP_ID ||= "wx-docs-only";
+  process.env.WECHAT_PLATFORM_APP_SECRET ||= "docs-only-secret";
 
   const app = await NestFactory.create(AppModule, { logger: false });
   app.setGlobalPrefix("api");

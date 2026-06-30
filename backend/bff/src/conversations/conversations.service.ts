@@ -48,15 +48,19 @@ export class ConversationsService {
       keywordSql = `AND m.name ILIKE '%' || $${values.length} || '%'`;
     }
     const result = await this.database.query<ConversationRow>(
-      `SELECT c.*, m.name AS merchant_name, m.logo AS merchant_logo,
-              m.description AS merchant_description,
-              m.mini_program_app_id AS merchant_app_id,
-              m.status AS merchant_status
-       FROM conversations c
-       JOIN merchants m ON m.id = c.merchant_id
-       WHERE c.user_id = $1 AND c.status = 'active' AND m.status = 'enabled'
-       ${keywordSql}
-       ORDER BY c.last_message_time DESC NULLS LAST, c.created_at DESC`,
+      `SELECT * FROM (
+         SELECT DISTINCT ON (c.merchant_id)
+                c.*, m.name AS merchant_name, m.logo AS merchant_logo,
+                m.description AS merchant_description,
+                m.mini_program_app_id AS merchant_app_id,
+                m.status AS merchant_status
+         FROM conversations c
+         JOIN merchants m ON m.id = c.merchant_id
+         WHERE c.user_id = $1 AND c.status = 'active' AND m.status = 'enabled'
+         ${keywordSql}
+         ORDER BY c.merchant_id, c.last_message_time DESC NULLS LAST, c.created_at DESC
+       ) latest
+       ORDER BY latest.last_message_time DESC NULLS LAST, latest.created_at DESC`,
       values,
     );
     return {
@@ -72,15 +76,21 @@ export class ConversationsService {
   }
 
   async listMessages(conversationId: string, userId: string) {
-    await this.getOwnedConversation(conversationId, userId);
+    const conversation = await this.getOwnedConversation(conversationId, userId);
     const result = await this.database.query<MessageRow>(
-      `SELECT * FROM messages
-       WHERE conversation_id = $1
-       ORDER BY created_at ASC
-       LIMIT 100`,
-      [conversationId],
+      `SELECT m.* FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.user_id = $1 AND c.merchant_id = $2 AND c.status = 'active'
+       ORDER BY m.created_at ASC
+       LIMIT 200`,
+      [userId, conversation.merchant_id],
     );
-    return { list: result.rows.map((row) => this.mapMessage(row)) };
+    return {
+      list: result.rows.map((row) => ({
+        ...this.mapMessage(row),
+        isCurrentSession: row.conversation_id === conversationId,
+      })),
+    };
   }
 
   async send(conversationId: string, userId: string, dto: SendMessageDto) {
@@ -129,7 +139,7 @@ export class ConversationsService {
       `SELECT * FROM messages
        WHERE conversation_id = $1
        ORDER BY created_at DESC
-       LIMIT 20`,
+       LIMIT 10`,
       [conversationId],
     );
     const history: ChatMessage[] = historyResult.rows
@@ -148,6 +158,15 @@ export class ConversationsService {
 
     const cards = guide.products.map(({ row }) => {
       const product = this.products.toProduct(row);
+      const images = (product.images as Array<{ url?: string }>)
+        .map((img) => img.url)
+        .filter(Boolean) as string[];
+      const specs = (product.options as Array<{ name: string; type?: string; options?: Array<{ name: string; price?: number }> }>)
+        .filter((opt) => opt.type === "price" && opt.options?.length)
+        .map((opt) => ({
+          name: opt.name,
+          values: opt.options!.map((v) => ({ label: v.name, price: v.price ?? null })),
+        }));
       return {
         productId: product.id,
         name: product.title,
@@ -156,7 +175,9 @@ export class ConversationsService {
         price: product.displayPrice,
         minPrice: product.minPrice,
         maxPrice: product.maxPrice,
-        imageUrl: (product.images[0] as { url?: string } | undefined)?.url || null,
+        imageUrl: images[0] || null,
+        images,
+        specs,
         miniProgramAppId: conversation.merchant_app_id,
         miniProgramPath: product.miniProgramPath,
         miniProgramParams: product.miniProgramParams,
