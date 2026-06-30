@@ -12,7 +12,7 @@ export class ApiError extends Error {
 
 async function request<T>(options: Taro.request.Option): Promise<T> {
   if (!API_BASE && Taro.getEnv() !== Taro.ENV_TYPE.WEB) {
-    throw new ApiError("未配置服务端地址 TARO_APP_API_BASE", "API_BASE_MISSING");
+    throw new ApiError("未配置服务端地址 TARO_APP_API_BASE / TARO_APP_BASE_URL", "API_BASE_MISSING");
   }
   const token = getToken();
   const response = await Taro.request<Record<string, unknown>>({

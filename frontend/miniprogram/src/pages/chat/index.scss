@@ -6,126 +6,40 @@
   background: #fff8f2;
 }
 
-.merchant-hero {
+.chat-header {
   position: relative;
   z-index: 2;
   flex: 0 0 auto;
-  height: 336px;
   overflow: hidden;
-  color: #ffffff;
-  background: linear-gradient(135deg, #6d4328 0%, #2f1a10 100%);
-
-  &::after {
-    position: absolute;
-    right: -140px;
-    bottom: -190px;
-    width: 430px;
-    height: 320px;
-    content: "";
-    border: 48px solid rgba(255, 255, 255, 0.08);
-    border-radius: 50%;
-  }
-
-  &__background,
-  &__mask {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  &__background {
-    opacity: 0.78;
-    transform: scale(1.02);
-  }
-
-  &__mask {
-    background:
-      linear-gradient(180deg, rgba(30, 16, 9, 0.2) 0%, rgba(30, 16, 9, 0.42) 42%, rgba(30, 16, 9, 0.82) 100%),
-      linear-gradient(90deg, rgba(42, 24, 14, 0.86) 0%, rgba(42, 24, 14, 0.54) 58%, rgba(42, 24, 14, 0.2) 100%);
-  }
+  color: #2b170c;
+  background: linear-gradient(180deg, #fff4ea 0%, rgba(255, 248, 242, 0.96) 76%, rgba(255, 248, 242, 0) 100%);
 
   .custom-nav {
-    color: #ffffff;
+    color: #2b170c;
   }
 
-  &__info {
-    position: absolute;
-    z-index: 2;
-    right: 32px;
-    bottom: 32px;
-    left: 32px;
-    display: flex;
-    align-items: center;
-    padding: 18px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 30px;
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(14px);
+  .custom-nav__title {
+    max-width: 340px;
+    font-size: 30px;
+    line-height: 42px;
   }
 
-  &__logo {
-    flex: 0 0 auto;
-    width: 106px;
-    height: 106px;
-    background: #ffffff;
-    border: 4px solid rgba(255, 255, 255, 0.76);
-    border-radius: 28px;
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+  .custom-nav__side {
+    min-width: 72px;
   }
 
-  &__copy {
-    display: flex;
-    min-width: 0;
-    margin-left: 22px;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
-    flex-direction: column;
+  .custom-nav__back {
+    width: 54px;
+    height: 54px;
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(255, 223, 198, 0.72);
+    box-shadow: none;
   }
 
-  &__name-line {
-    display: flex;
-    align-items: center;
-  }
-
-  &__name {
-    max-width: 328px;
-    overflow: hidden;
-    font-size: 36px;
-    font-weight: 800;
-    letter-spacing: -0.3px;
-    line-height: 46px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__badge {
-    margin-left: 12px;
-    padding: 5px 12px;
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 28px;
-    text-shadow: none;
-    background: linear-gradient(135deg, #ff8a24, #ff6900);
-    border-radius: 999px;
-  }
-
-  &__assistant {
-    margin-top: 6px;
-    color: rgba(255, 255, 255, 0.96);
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  &__description {
-    margin-top: 7px;
-    overflow: hidden;
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 21px;
-    line-height: 30px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .custom-nav__back-icon {
+    width: 16px;
+    height: 16px;
+    border-width: 4px;
   }
 }
 
@@ -136,14 +50,14 @@
 
 .question-strip {
   display: flex;
-  min-height: 86px;
+  min-height: 76px;
   align-items: center;
-  margin: 20px 24px 0;
-  padding: 16px 0 16px 18px;
+  margin: 14px 22px 0;
+  padding: 12px 0 12px 16px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(255, 224, 203, 0.86);
-  border-radius: 28px;
-  box-shadow: 0 14px 34px rgba(102, 54, 23, 0.06);
+  border-radius: 24px;
+  box-shadow: 0 12px 28px rgba(102, 54, 23, 0.05);
 
   &__label {
     flex: 0 0 auto;
@@ -180,7 +94,7 @@
 }
 
 .message-list {
-  padding: 28px 24px 54px;
+  padding: 22px 24px 54px;
 }
 
 .message-row {
@@ -287,6 +201,8 @@
   border-top: 1px solid rgba(255, 224, 203, 0.86);
   box-shadow: 0 -14px 34px rgba(82, 45, 21, 0.08);
   backdrop-filter: blur(18px);
+  transition: transform 0.22s ease-out;
+  will-change: transform;
 
   &__inner {
     display: flex;
@@ -423,8 +339,6 @@
 }
 
 @media screen and (max-width: 370px) {
-  .merchant-hero { height: 316px; }
-  .merchant-hero__info { right: 24px; left: 24px; }
-  .merchant-hero__name { max-width: 240px; }
+  .chat-header .custom-nav__title { max-width: 300px; }
   .message-list { padding-right: 18px; padding-left: 18px; }
 }

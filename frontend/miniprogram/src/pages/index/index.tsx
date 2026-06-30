@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image, Input, Text, View } from "@tarojs/components";
-import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
+import Taro, { useDidShow, useLoad, usePullDownRefresh } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
+import scanIcon from "@/assets/scan-icon.svg";
 import { listConversations, scanMerchant } from "@/services/api";
 import type { Conversation } from "@/types";
 import { getToken } from "@/utils/auth";
@@ -71,6 +72,32 @@ export default function HomePage() {
     });
   };
 
+  const openMerchantScene = async (scene: string) => {
+    const normalizedScene = decodeURIComponent(scene.trim());
+    if (!normalizedScene) throw new Error("未识别到有效的商家码");
+    const result = await scanMerchant(normalizedScene);
+    if (result.needLogin || !getToken()) {
+      await Taro.navigateTo({ url: `/pages/auth/index?merchantId=${encodeURIComponent(result.merchantId)}` });
+      return;
+    }
+    await Taro.navigateTo({
+      url: `/pages/chat/index?merchantId=${encodeURIComponent(result.merchantId)}${result.conversationId ? `&conversationId=${encodeURIComponent(result.conversationId)}` : ""}`,
+    });
+  };
+
+  useLoad((options) => {
+    const scene = typeof options.scene === "string" ? options.scene : "";
+    if (!scene) return;
+    setTimeout(() => {
+      void openMerchantScene(scene).catch((err) => {
+        Taro.showToast({
+          title: err instanceof Error ? err.message : "未能识别商家码",
+          icon: "none",
+        });
+      });
+    }, 80);
+  });
+
   const handleScan = async () => {
     try {
       if (Taro.getEnv() !== Taro.ENV_TYPE.WEAPP) {
@@ -79,15 +106,7 @@ export default function HomePage() {
       }
       const scanResult = await Taro.scanCode({ scanType: ["qrCode"] });
       const scene = extractScene(scanResult);
-      if (!scene) throw new Error("未识别到有效的商家码");
-      const result = await scanMerchant(scene);
-      if (result.needLogin || !getToken()) {
-        await Taro.navigateTo({ url: `/pages/auth/index?merchantId=${encodeURIComponent(result.merchantId)}` });
-        return;
-      }
-      await Taro.navigateTo({
-        url: `/pages/chat/index?merchantId=${encodeURIComponent(result.merchantId)}${result.conversationId ? `&conversationId=${encodeURIComponent(result.conversationId)}` : ""}`,
-      });
+      await openMerchantScene(scene);
     } catch (err) {
       const message = err instanceof Error ? err.message : "未能识别商家码";
       if (!/cancel/i.test(message)) Taro.showToast({ title: message, icon: "none" });
@@ -97,9 +116,7 @@ export default function HomePage() {
   return (
     <View className="page-shell home-page">
       <View className="home-hero">
-        <CustomNav transparent>
-          {!loggedIn && <Text className="home-hero__login" onClick={() => Taro.navigateTo({ url: "/pages/auth/index" })}>登录</Text>}
-        </CustomNav>
+        <CustomNav transparent />
         <View className="home-hero__content">
           <View className="home-hero__copy">
             <Text className="home-hero__title">智能导购</Text>
@@ -197,7 +214,7 @@ export default function HomePage() {
 
       <View className="home-scan safe-bottom">
         <View className="home-scan__button" onClick={handleScan}>
-          <View className="home-scan__icon"><View /><View /><View /><View /></View>
+          <Image className="home-scan__icon" src={scanIcon} mode="aspectFit" />
           <Text>扫一扫商家码</Text>
         </View>
       </View>

@@ -46,7 +46,7 @@ export class WechatService {
     return { openId: body.openid, unionId: body.unionid };
   }
 
-  async createUnlimitedCode(scene: string): Promise<Buffer> {
+  async createUnlimitedCode(scene: string, page?: string): Promise<Buffer> {
     const tokenQuery = new URLSearchParams({
       grant_type: "client_credential",
       appid: this.config.get("wechatAppId", { infer: true }),
@@ -75,7 +75,7 @@ export class WechatService {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scene, check_path: false }),
+        body: JSON.stringify({ scene, page, check_path: false }),
         signal: AbortSignal.timeout(10_000),
       },
     );

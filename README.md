@@ -26,11 +26,14 @@ smartbuy/
 用户端位于 `frontend/miniprogram`，使用 Taro 4 + React + TypeScript。
 
 ```bash
-# 微信开发者工具联调，默认连接 http://127.0.0.1:3000
+# 微信开发者工具联调，开发环境默认自动连接当前电脑局域网 IP 的 3000 端口
 pnpm dev:miniprogram
 
-# 真机联调时改为开发电脑的局域网地址
+# 如自动识别的 IP 不正确，可手动指定开发电脑的局域网地址
 TARO_APP_API_BASE=http://192.168.x.x:3000 pnpm dev:miniprogram
+
+# 也兼容 TARO_APP_BASE_URL；推荐优先使用 TARO_APP_API_BASE
+TARO_APP_BASE_URL=http://192.168.x.x:3000 pnpm dev:miniprogram
 
 # 正式构建必须使用已加入微信合法域名的 HTTPS 地址
 TARO_APP_API_BASE=https://api.example.com pnpm --filter @smartbuy/miniprogram build:weapp

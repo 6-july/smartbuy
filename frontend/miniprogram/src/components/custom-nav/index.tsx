@@ -10,12 +10,25 @@ interface CustomNavProps {
   children?: React.ReactNode;
 }
 
-function getStatusBarHeight() {
-  if (Taro.getEnv() === Taro.ENV_TYPE.WEB) return 12;
+function getNavMetrics() {
+  if (Taro.getEnv() === Taro.ENV_TYPE.WEB) {
+    return { statusBarHeight: 12, navBarHeight: 44 };
+  }
+
   try {
-    return Taro.getWindowInfo().statusBarHeight || 20;
+    const statusBarHeight = Taro.getWindowInfo().statusBarHeight || 20;
+    const menuButton = Taro.getMenuButtonBoundingClientRect();
+    const menuButtonTop = menuButton.top || statusBarHeight + 4;
+    const menuButtonHeight = menuButton.height || 32;
+    const menuButtonBottom = menuButton.bottom || menuButtonTop + menuButtonHeight;
+    const navBottomGap = 8;
+
+    return {
+      statusBarHeight,
+      navBarHeight: Math.max(44, Math.ceil(menuButtonBottom - statusBarHeight + navBottomGap)),
+    };
   } catch {
-    return 20;
+    return { statusBarHeight: 20, navBarHeight: 44 };
   }
 }
 
@@ -26,7 +39,7 @@ export default function CustomNav({
   onBack,
   children,
 }: CustomNavProps) {
-  const statusBarHeight = getStatusBarHeight();
+  const { statusBarHeight, navBarHeight } = getNavMetrics();
 
   const handleBack = () => {
     if (onBack) return onBack();
@@ -34,7 +47,7 @@ export default function CustomNav({
       Taro.navigateBack();
       return;
     }
-    Taro.reLaunch({ url: "/pages/home/index" });
+    Taro.reLaunch({ url: "/pages/index/index" });
   };
 
   return (
@@ -42,11 +55,11 @@ export default function CustomNav({
       className={`custom-nav ${transparent ? "custom-nav--transparent" : ""}`}
       style={{ paddingTop: `${statusBarHeight}px` }}
     >
-      <View className="custom-nav__bar">
+      <View className="custom-nav__bar" style={{ height: `${navBarHeight}px` }}>
         <View className="custom-nav__side">
           {showBack && (
             <View className="custom-nav__back" onClick={handleBack} aria-label="返回">
-              <Text className="custom-nav__back-icon">‹</Text>
+              <View className="custom-nav__back-icon" />
             </View>
           )}
         </View>

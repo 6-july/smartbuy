@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Image, Input, ScrollView, Text, View } from "@tarojs/components";
+import { Input, ScrollView, Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
 import ProductCard from "@/components/product-card";
-import { getGuideInfo, getMessages, sendMessage } from "@/services/api";
+import { getGuideInfo, getMessages, scanMerchant, sendMessage } from "@/services/api";
 import type { ChatMessage, GuideInfo } from "@/types";
 import { getToken } from "@/utils/auth";
 import "./index.scss";
@@ -11,6 +11,7 @@ import "./index.scss";
 export default function ChatPage() {
   const router = useRouter();
   const merchantId = router.params.merchantId || "";
+  const scene = router.params.scene || "";
   const routeConversationId = router.params.conversationId || "";
   const [guide, setGuide] = useState<GuideInfo | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -20,10 +21,32 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [scrollAnchor, setScrollAnchor] = useState("chat-end");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const loadPage = async () => {
     if (!getToken()) {
-      await Taro.redirectTo({ url: `/pages/auth/index?merchantId=${encodeURIComponent(merchantId)}` });
+      if (merchantId) {
+        await Taro.redirectTo({ url: `/pages/auth/index?merchantId=${encodeURIComponent(merchantId)}` });
+        return;
+      }
+      if (scene) {
+        const result = await scanMerchant(scene);
+        await Taro.redirectTo({ url: `/pages/auth/index?merchantId=${encodeURIComponent(result.merchantId)}` });
+        return;
+      }
+      await Taro.redirectTo({ url: "/pages/auth/index" });
+      return;
+    }
+    if (!merchantId && scene) {
+      try {
+        const result = await scanMerchant(scene);
+        await Taro.redirectTo({
+          url: `/pages/chat/index?merchantId=${encodeURIComponent(result.merchantId)}${result.conversationId ? `&conversationId=${encodeURIComponent(result.conversationId)}` : ""}`,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "未能识别商家码");
+        setLoading(false);
+      }
       return;
     }
     if (!merchantId) {
@@ -115,21 +138,8 @@ export default function ChatPage() {
 
   return (
     <View className="page-shell chat-page">
-      <View className="merchant-hero">
-        <Image className="merchant-hero__background" src={merchant.bannerImage || merchant.logo || ""} mode="aspectFill" />
-        <View className="merchant-hero__mask" />
-        <CustomNav transparent showBack />
-        <View className="merchant-hero__info">
-          <Image className="merchant-hero__logo" src={merchant.logo || ""} mode="aspectFill" />
-          <View className="merchant-hero__copy">
-            <View className="merchant-hero__name-line">
-              <Text className="merchant-hero__name">{merchant.name}</Text>
-              <Text className="merchant-hero__badge">AI 导购</Text>
-            </View>
-            <Text className="merchant-hero__assistant">智能导购助手</Text>
-            <Text className="merchant-hero__description">{merchant.description || "随时为你介绍店内商品"}</Text>
-          </View>
-        </View>
+      <View className="chat-header">
+        <CustomNav title={merchant.name} transparent showBack />
       </View>
 
       <ScrollView
@@ -191,21 +201,31 @@ export default function ChatPage() {
               <View className="message-thinking"><Text /><Text /><Text /></View>
             </View>
           )}
-          <View id="chat-end" className="chat-end" />
+          <View
+            id="chat-end"
+            className="chat-end"
+            style={{ height: keyboardHeight ? `${keyboardHeight + 24}px` : "2px" }}
+          />
         </View>
       </ScrollView>
 
-      <View className="chat-composer safe-bottom">
+      <View className="chat-composer safe-bottom" style={{ transform: keyboardHeight ? `translateY(-${keyboardHeight}px)` : "none" }}>
         <View className="chat-composer__inner">
           <Input
             className="chat-composer__input"
             value={inputValue}
             onInput={(event) => setInputValue(event.detail.value)}
             onConfirm={() => submit()}
+            onKeyboardHeightChange={(event) => {
+              const height = event.detail.height || 0;
+              setKeyboardHeight(height);
+              if (height > 0) setTimeout(() => setScrollAnchor("chat-end"), 80);
+            }}
+            onBlur={() => setKeyboardHeight(0)}
             placeholder="继续问问商品..."
             placeholderClass="chat-composer__placeholder"
             confirmType="send"
-            adjustPosition
+            adjustPosition={false}
             maxlength={200}
           />
           <View className={`chat-composer__send ${!inputValue.trim() || sending ? "chat-composer__send--disabled" : ""}`} onClick={() => submit()}>

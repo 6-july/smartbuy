@@ -3,15 +3,10 @@ import { Image, Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
 import robotImage from "@/assets/guide-robot.svg";
+import wechatIcon from "@/assets/wechat-icon.svg";
 import { wechatLogin } from "@/services/api";
 import { continueAsGuest, saveSession } from "@/utils/auth";
 import "./index.scss";
-
-const benefits = [
-  { icon: "记", title: "保存历史会话", detail: "自动保存你的咨询记录，随时查看" },
-  { icon: "续", title: "快速进入商家对话", detail: "一键继续上次的咨询内容" },
-  { icon: "安", title: "安全可靠", detail: "严格保护你的隐私信息" },
-];
 
 export default function AuthPage() {
   const router = useRouter();
@@ -23,7 +18,7 @@ export default function AuthPage() {
       await Taro.redirectTo({ url: `/pages/chat/index?merchantId=${encodeURIComponent(merchantId)}` });
       return;
     }
-    await Taro.reLaunch({ url: "/pages/home/index" });
+    await Taro.reLaunch({ url: "/pages/index/index" });
   };
 
   const login = async () => {
@@ -49,7 +44,7 @@ export default function AuthPage() {
 
   const skip = async () => {
     continueAsGuest();
-    await Taro.reLaunch({ url: "/pages/home/index" });
+    await Taro.reLaunch({ url: "/pages/index/index" });
   };
 
   const showPolicy = (title: string) => {
@@ -75,30 +70,19 @@ export default function AuthPage() {
           <Text className="auth-heading__subtitle">授权后可保存历史会话，快速进入商家导购对话</Text>
         </View>
 
-        <View className="auth-benefits">
-          {benefits.map((item) => (
-            <View className="auth-benefit" key={item.title}>
-              <View className="auth-benefit__icon"><Text>{item.icon}</Text></View>
-              <View className="auth-benefit__copy">
-                <Text className="auth-benefit__title">{item.title}</Text>
-                <Text className="auth-benefit__detail">{item.detail}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View className={`auth-login ${loggingIn ? "auth-login--disabled" : ""}`} onClick={login}>
-          <View className="auth-login__wechat"><View /><View /></View>
-          <Text>{loggingIn ? "登录中..." : "微信授权登录"}</Text>
+        <View className="auth-action">
+          <View className="auth-policy">
+            <Text>登录即代表你已同意</Text>
+            <Text className="auth-policy__link" onClick={() => showPolicy("用户协议")}>《用户协议》</Text>
+            <Text>与</Text>
+            <Text className="auth-policy__link" onClick={() => showPolicy("隐私政策")}>《隐私政策》</Text>
+          </View>
+          <View className={`auth-login ${loggingIn ? "auth-login--disabled" : ""}`} onClick={login}>
+            <Image className="auth-login__wechat" src={wechatIcon} mode="aspectFit" />
+            <Text>{loggingIn ? "登录中..." : "微信授权登录"}</Text>
+          </View>
         </View>
         <Text className="auth-skip" onClick={skip}>暂不登录，先看看</Text>
-      </View>
-
-      <View className="auth-policy safe-bottom">
-        <Text>登录即代表你已同意</Text>
-        <Text className="auth-policy__link" onClick={() => showPolicy("用户协议")}>《用户协议》</Text>
-        <Text>与</Text>
-        <Text className="auth-policy__link" onClick={() => showPolicy("隐私政策")}>《隐私政策》</Text>
       </View>
     </View>
   );

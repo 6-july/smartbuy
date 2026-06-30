@@ -1,12 +1,25 @@
 import { defineConfig, type UserConfigExport } from "@tarojs/cli";
+import { networkInterfaces } from "node:os";
 import path from "node:path";
 import devConfig from "./dev";
 import prodConfig from "./prod";
 
+function getLocalNetworkIp() {
+  const addresses = Object.values(networkInterfaces())
+    .flatMap((items) => items || [])
+    .filter((item) => item.family === "IPv4" && !item.internal)
+    .map((item) => item.address);
+
+  return (
+    addresses.find((address) => /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(address)) ||
+    addresses[0] ||
+    "0.0.0.0"
+  );
+}
+
 export default defineConfig<"webpack5">((merge) => {
-  const apiBase =
-    process.env.TARO_APP_API_BASE ||
-    (process.env.NODE_ENV === "development" ? "http://127.0.0.1:3000" : "");
+  const devApiBase = `http://${process.env.TARO_APP_API_HOST || getLocalNetworkIp()}:${process.env.TARO_APP_API_PORT || "3000"}`;
+  const apiBase = process.env.TARO_APP_API_BASE || process.env.TARO_APP_BASE_URL || devApiBase;
   const baseConfig: UserConfigExport<"webpack5"> = {
     projectName: "smartbuy-miniprogram",
     date: "2026-06-29",
@@ -47,7 +60,7 @@ export default defineConfig<"webpack5">((merge) => {
         proxy: [
           {
             context: ["/api"],
-            target: "http://127.0.0.1:3000",
+            target: apiBase || devApiBase,
             changeOrigin: true,
           },
         ],

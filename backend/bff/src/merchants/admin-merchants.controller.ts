@@ -35,6 +35,6 @@ export class AdminMerchantsController {
   @ApiOperation({ summary: "生成商家太阳码 PNG" })
   async solarCode(@Param("merchantId") merchantId: string): Promise<StreamableFile> {
     const merchant = await this.merchants.findEnabledById(merchantId);
-    return new StreamableFile(await this.wechat.createUnlimitedCode(merchant.scene_code));
+    return new StreamableFile(await this.wechat.createUnlimitedCode(merchant.scene_code, "pages/chat/index"));
   }
 }
