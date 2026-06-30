@@ -17,3 +17,5 @@ declare module "*.svg" {
 }
 
 declare const __API_BASE__: string;
+// 同声传译权限暂未开通，先保留插件声明但不启用。
+// declare function requirePlugin(name: string): unknown;

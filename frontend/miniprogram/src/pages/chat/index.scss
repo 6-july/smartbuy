@@ -379,7 +379,8 @@
   position: relative;
   z-index: 4;
   flex: 0 0 auto;
-  padding: 16px 20px 18px;
+  padding: 16px 20px calc(18px + constant(safe-area-inset-bottom));
+  padding: 16px 20px calc(18px + env(safe-area-inset-bottom));
   background: rgba(255, 250, 245, 0.92);
   border-top: 1px solid rgba(255, 224, 203, 0.86);
   box-shadow: 0 -14px 34px rgba(82, 45, 21, 0.08);
@@ -396,6 +397,127 @@
     border-radius: 44px;
     box-shadow: 0 12px 28px rgba(102, 54, 23, 0.06);
   }
+
+  /* 同声传译权限暂未开通，语音识别样式先保留但不启用。
+  &__voice-tip {
+    display: flex;
+    max-width: 620px;
+    min-height: 58px;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 0 auto 14px;
+    padding: 0 22px;
+    overflow: hidden;
+    color: #8a4c25;
+    font-size: 23px;
+    font-weight: 600;
+    line-height: 32px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgba(255, 239, 226, 0.96);
+    border: 1px solid rgba(255, 199, 158, 0.88);
+    border-radius: 999px;
+    box-shadow: 0 12px 24px rgba(255, 105, 0, 0.1);
+  }
+
+  &__voice-wave {
+    display: flex;
+    height: 24px;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+
+    text {
+      width: 5px;
+      height: 12px;
+      background: #ff6900;
+      border-radius: 999px;
+      animation: voice-wave 0.86s infinite ease-in-out;
+    }
+
+    text:nth-child(2) {
+      height: 22px;
+      animation-delay: 0.12s;
+    }
+
+    text:nth-child(3) {
+      animation-delay: 0.24s;
+    }
+  }
+
+  &__voice {
+    position: relative;
+    display: flex;
+    width: 70px;
+    height: 70px;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: #ff6900;
+    background: #fff3ea;
+    border: 1px solid rgba(255, 202, 164, 0.9);
+    border-radius: 50%;
+    transition: transform 0.16s ease, background 0.16s ease, color 0.16s ease;
+
+    &:active {
+      transform: scale(0.96);
+    }
+
+    &--active {
+      color: #ffffff;
+      background: linear-gradient(135deg, #ff8a24, #ff6900);
+      border-color: transparent;
+      box-shadow: 0 10px 20px rgba(255, 105, 0, 0.22);
+
+      &::after {
+        position: absolute;
+        width: 86px;
+        height: 86px;
+        content: "";
+        border: 2px solid rgba(255, 105, 0, 0.26);
+        border-radius: 50%;
+        animation: voice-pulse 1.2s infinite ease-out;
+      }
+    }
+
+    &--disabled {
+      opacity: 0.46;
+    }
+  }
+
+  &__voice-icon {
+    position: relative;
+    z-index: 1;
+    width: 30px;
+    height: 38px;
+
+    &::before {
+      position: absolute;
+      top: 0;
+      left: 8px;
+      width: 14px;
+      height: 24px;
+      content: "";
+      border: 4px solid currentColor;
+      border-radius: 999px;
+    }
+
+    &::after {
+      position: absolute;
+      top: 21px;
+      left: 5px;
+      width: 20px;
+      height: 13px;
+      content: "";
+      border-right: 4px solid currentColor;
+      border-bottom: 4px solid currentColor;
+      border-left: 4px solid currentColor;
+      border-radius: 0 0 16px 16px;
+    }
+  }
+  */
 
   &__input {
     height: 70px;
@@ -427,9 +549,8 @@
     box-shadow: 0 10px 20px rgba(255, 105, 0, 0.2);
 
     &--disabled {
-      color: #bba390;
-      background: #f2e6dc;
-      box-shadow: none;
+      opacity: 0.45;
+      box-shadow: 0 6px 14px rgba(255, 105, 0, 0.12);
     }
   }
 }
@@ -501,6 +622,9 @@
 
 @keyframes chat-spin { to { transform: rotate(360deg); } }
 @keyframes chat-dot { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+// 同声传译权限暂未开通，语音识别动画先保留但不启用。
+// @keyframes voice-pulse { from { opacity: 0.9; transform: scale(0.8); } to { opacity: 0; transform: scale(1.2); } }
+// @keyframes voice-wave { 0%, 100% { transform: scaleY(0.62); } 50% { transform: scaleY(1); } }
 @keyframes spec-mask-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes spec-mask-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes spec-sheet-slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }

@@ -17,6 +17,26 @@ function getAvailableSpecs(product: ProductCardData | null) {
   return (product?.specs || []).filter((spec) => (spec.values || []).length > 0);
 }
 
+// 同声传译权限暂未开通，语音识别类型先保留但不启用。
+// interface WechatSIRecordResult {
+//   result?: string;
+//   tempFilePath?: string;
+//   msg?: string;
+// }
+//
+// interface WechatSIRecordRecognitionManager {
+//   start(options: { duration?: number; lang?: string }): void;
+//   stop(): void;
+//   onStart?: (result: WechatSIRecordResult) => void;
+//   onRecognize?: (result: WechatSIRecordResult) => void;
+//   onStop?: (result: WechatSIRecordResult) => void;
+//   onError?: (result: WechatSIRecordResult) => void;
+// }
+//
+// interface WechatSIPlugin {
+//   getRecordRecognitionManager?: () => WechatSIRecordRecognitionManager;
+// }
+
 export default function ChatPage() {
   const router = useRouter();
   const merchantId = router.params.merchantId || "";
@@ -34,9 +54,13 @@ export default function ChatPage() {
   const [productScrollIndex, setProductScrollIndex] = useState<Record<string, number>>({});
   const [specsProduct, setSpecsProduct] = useState<ProductCardData | null>(null);
   const [specsModalClosing, setSpecsModalClosing] = useState(false);
+  // 同声传译权限暂未开通，语音识别状态先保留但不启用。
+  // const [recognizing, setRecognizing] = useState(false);
+  // const [voiceDraft, setVoiceDraft] = useState("");
   const scrollDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const specsCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // const voiceManagerRef = useRef<WechatSIRecordRecognitionManager | null>(null);
 
   const clearScrollAnchor = () => {
     if (scrollDelayTimer.current) clearTimeout(scrollDelayTimer.current);
@@ -136,7 +160,100 @@ export default function ChatPage() {
     if (scrollDelayTimer.current) clearTimeout(scrollDelayTimer.current);
     if (scrollClearTimer.current) clearTimeout(scrollClearTimer.current);
     if (specsCloseTimer.current) clearTimeout(specsCloseTimer.current);
+    // 同声传译权限暂未开通，语音识别清理逻辑先保留但不启用。
+    // try {
+    //   voiceManagerRef.current?.stop();
+    // } catch {
+    //   // Ignore stop errors when the recognition manager is already idle.
+    // }
   }, []);
+
+  // 同声传译权限暂未开通，语音识别逻辑先保留但不启用。
+  // const ensureRecordPermission = async () => {
+  //   try {
+  //     await Taro.authorize({ scope: "scope.record" });
+  //     return true;
+  //   } catch {
+  //     const result = await Taro.showModal({
+  //       title: "需要麦克风权限",
+  //       content: "开启麦克风权限后，可以直接说出想咨询的问题。",
+  //       confirmText: "去设置",
+  //     });
+  //     if (result.confirm) {
+  //       const setting = await Taro.openSetting();
+  //       return Boolean(setting.authSetting?.["scope.record"]);
+  //     }
+  //     return false;
+  //   }
+  // };
+  //
+  // const getVoiceManager = () => {
+  //   if (voiceManagerRef.current) return voiceManagerRef.current;
+  //   if (Taro.getEnv() !== Taro.ENV_TYPE.WEAPP || typeof requirePlugin !== "function") {
+  //     throw new Error("请在微信小程序中使用语音输入");
+  //   }
+  //   const plugin = requirePlugin("WechatSI") as WechatSIPlugin;
+  //   const manager = plugin.getRecordRecognitionManager?.();
+  //   if (!manager) {
+  //     throw new Error("语音识别插件初始化失败");
+  //   }
+  //   manager.onStart = () => {
+  //     setRecognizing(true);
+  //     setVoiceDraft("");
+  //   };
+  //   manager.onRecognize = (result) => {
+  //     const text = result.result?.trim() || "";
+  //     if (!text) return;
+  //     setVoiceDraft(text);
+  //     setInputValue(text);
+  //   };
+  //   manager.onStop = (result) => {
+  //     setRecognizing(false);
+  //     setVoiceDraft("");
+  //     const text = result.result?.trim() || "";
+  //     if (text) {
+  //       setInputValue(text);
+  //       triggerScroll("chat-end", 40);
+  //       return;
+  //     }
+  //     Taro.showToast({ title: "没有识别到内容", icon: "none" });
+  //   };
+  //   manager.onError = (result) => {
+  //     setRecognizing(false);
+  //     setVoiceDraft("");
+  //     Taro.showToast({
+  //       title: result.msg || "语音识别失败，请重试",
+  //       icon: "none",
+  //     });
+  //   };
+  //   voiceManagerRef.current = manager;
+  //   return manager;
+  // };
+  //
+  // const toggleVoiceInput = async () => {
+  //   if (sending) return;
+  //   if (recognizing) {
+  //     try {
+  //       voiceManagerRef.current?.stop();
+  //     } catch {
+  //       setRecognizing(false);
+  //     }
+  //     return;
+  //   }
+  //   const hasPermission = await ensureRecordPermission();
+  //   if (!hasPermission) return;
+  //   try {
+  //     const manager = getVoiceManager();
+  //     setVoiceDraft("");
+  //     manager.start({ duration: 60000, lang: "zh_CN" });
+  //   } catch (err) {
+  //     setRecognizing(false);
+  //     Taro.showToast({
+  //       title: err instanceof Error ? err.message : "语音输入暂不可用",
+  //       icon: "none",
+  //     });
+  //   }
+  // };
 
   const submit = async (preset?: string) => {
     const content = (preset ?? inputValue).trim();
@@ -294,7 +411,23 @@ export default function ChatPage() {
       </ScrollView>
 
       <View className="chat-composer safe-bottom" style={{ transform: keyboardHeight ? `translateY(-${keyboardHeight}px)` : "none" }}>
+        {/* 同声传译权限暂未开通，语音识别提示先保留但不启用。
+        {recognizing && (
+          <View className="chat-composer__voice-tip">
+            <View className="chat-composer__voice-wave"><Text /><Text /><Text /></View>
+            <Text>{voiceDraft || "正在听你说话，点麦克风结束"}</Text>
+          </View>
+        )}
+        */}
         <View className="chat-composer__inner">
+          {/* 同声传译权限暂未开通，语音识别按钮先保留但不启用。
+          <View
+            className={`chat-composer__voice ${recognizing ? "chat-composer__voice--active" : ""} ${sending ? "chat-composer__voice--disabled" : ""}`}
+            onClick={toggleVoiceInput}
+          >
+            <View className="chat-composer__voice-icon" />
+          </View>
+          */}
           <Input
             className="chat-composer__input"
             value={inputValue}

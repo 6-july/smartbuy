@@ -1,6 +1,7 @@
 .home-page {
   min-height: 100vh;
-  padding-bottom: 166px;
+  padding-bottom: calc(166px + constant(safe-area-inset-bottom));
+  padding-bottom: calc(166px + env(safe-area-inset-bottom));
   background:
     radial-gradient(circle at 16% 10%, rgba(255, 207, 166, 0.38) 0, rgba(255, 207, 166, 0) 230px),
     linear-gradient(180deg, #fff3e6 0%, #fffaf5 42%, #fffaf5 100%);
@@ -8,8 +9,8 @@
 
 .home-hero {
   position: relative;
-  overflow: hidden;
-  padding-bottom: 34px;
+  overflow: visible;
+  padding-bottom: 0;
 
   &::before,
   &::after {
@@ -187,7 +188,7 @@
   display: flex;
   height: 88px;
   align-items: center;
-  margin: 8px 32px 0;
+  margin: 8px 32px -28px;
   padding: 0 26px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(255, 138, 56, 0.14);
@@ -251,24 +252,21 @@
 }
 
 .home-content {
-  padding: 42px 30px 30px;
+  position: relative;
+  z-index: 2;
+  padding: 58px 30px 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 245, 0) 0, rgba(255, 250, 245, 0.78) 34px, #fffaf5 118px);
 }
 
 .home-section-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   color: #24140b;
   font-size: 34px;
   font-weight: 800;
   letter-spacing: -0.3px;
-
-  &__count {
-    color: #9b7358;
-    font-size: 23px;
-    font-weight: 500;
-  }
 }
 
 .conversation-list {
@@ -293,8 +291,8 @@
 
   &__logo-wrap {
     display: flex;
-    width: 76px;
-    height: 76px;
+    width: 88px;
+    height: 88px;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
@@ -335,7 +333,7 @@
     flex: 1;
     overflow: hidden;
     color: #27150a;
-    font-size: 29px;
+    font-size: 32px;
     font-weight: 700;
     line-height: 40px;
     text-overflow: ellipsis;
@@ -432,7 +430,8 @@
   right: 0;
   bottom: 0;
   left: 0;
-  padding: 18px 30px 24px;
+  padding: 18px 30px calc(24px + constant(safe-area-inset-bottom));
+  padding: 18px 30px calc(24px + env(safe-area-inset-bottom));
   background: rgba(255, 250, 245, 0.9);
   border-top: 1px solid rgba(255, 221, 195, 0.7);
   box-shadow: 0 -18px 38px rgba(82, 45, 21, 0.08);
@@ -440,16 +439,16 @@
 
   &__button {
     display: flex;
-    height: 92px;
+    height: 88px;
     align-items: center;
     justify-content: center;
     color: #ffffff;
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    background: linear-gradient(135deg, #ff8a24 0%, #ff6900 48%, #f25500 100%);
-    border-radius: 46px;
-    box-shadow: 0 18px 34px rgba(255, 105, 0, 0.26);
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, #ff8a3d 0%, #ff7426 52%, #ff6416 100%);
+    border-radius: 44px;
+    box-shadow: 0 12px 28px rgba(255, 112, 32, 0.24);
   }
 
   &__button:active {
@@ -457,9 +456,9 @@
   }
 
   &__icon {
-    width: 42px;
-    height: 42px;
-    margin-right: 14px;
+    width: 44px;
+    height: 44px;
+    margin-right: 12px;
     flex: 0 0 auto;
   }
 }

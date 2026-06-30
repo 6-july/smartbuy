@@ -26,6 +26,17 @@ export class RetrievalService {
     return Number(result.rows[0]?.count || 0);
   }
 
+  async listCategories(merchantId: string): Promise<string[]> {
+    const result = await this.database.query<{ category: string }>(
+      `SELECT DISTINCT category FROM products
+       WHERE merchant_id = $1 AND sale_status = 'on_sale'
+         AND category IS NOT NULL AND category != ''
+       ORDER BY category`,
+      [merchantId],
+    );
+    return result.rows.map((r) => r.category);
+  }
+
   async search(merchantId: string, intent: SearchIntent): Promise<RetrievedProduct[]> {
     const values: unknown[] = [merchantId];
     const conditions = [

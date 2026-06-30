@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Input, Text, View } from "@tarojs/components";
 import Taro, { useDidShow, useLoad } from "@tarojs/taro";
 import CustomNav from "@/components/custom-nav";
@@ -47,7 +47,7 @@ export default function HomePage() {
       const result = await listConversations(search);
       setConversations(result.list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "历史会话加载失败");
+      setError(err instanceof Error ? err.message : "最近咨询加载失败");
     } finally {
       setLoading(false);
     }
@@ -59,8 +59,6 @@ export default function HomePage() {
     const timer = setTimeout(() => void loadConversations(keyword), 280);
     return () => clearTimeout(timer);
   }, [keyword]);
-
-  const shownCount = useMemo(() => conversations.length, [conversations]);
 
   const openConversation = (item: Conversation) => {
     Taro.navigateTo({
@@ -141,7 +139,7 @@ export default function HomePage() {
             className="home-search__input"
             value={keyword}
             onInput={(event) => setKeyword(event.detail.value)}
-            placeholder="搜索咨询过的商家"
+            placeholder="搜索咨询过的店铺"
             placeholderClass="home-search__placeholder"
             confirmType="search"
           />
@@ -151,11 +149,10 @@ export default function HomePage() {
 
       <View className="home-content">
         <View className="home-section-title">
-          <Text>历史会话</Text>
-          {loggedIn && !loading && <Text className="home-section-title__count">{shownCount} 家商户</Text>}
+          <Text>最近咨询</Text>
         </View>
 
-        {loading && <View className="home-state"><View className="home-state__spinner" /><Text>正在加载会话...</Text></View>}
+        {loading && <View className="home-state"><View className="home-state__spinner" /><Text>正在加载最近咨询...</Text></View>}
 
         {!loading && error && (
           <View className="home-state">
@@ -169,7 +166,7 @@ export default function HomePage() {
         {!loading && !error && !loggedIn && (
           <View className="home-state">
             <Text className="home-state__symbol">AI</Text>
-            <Text className="home-state__title">登录后可查看历史导购会话</Text>
+            <Text className="home-state__title">登录后可查看最近咨询的店铺</Text>
             <Text className="home-state__detail">也可以先扫描商家的导购码，授权后开始咨询</Text>
             <Text className="home-state__link" onClick={() => Taro.navigateTo({ url: "/pages/auth/index" })}>去登录</Text>
           </View>
@@ -178,7 +175,7 @@ export default function HomePage() {
         {!loading && !error && loggedIn && conversations.length === 0 && (
           <View className="home-state">
             <Text className="home-state__symbol">AI</Text>
-            <Text className="home-state__title">暂无导购会话</Text>
+            <Text className="home-state__title">暂无咨询过的店铺</Text>
             <Text className="home-state__detail">扫描商家的导购码，开始智能选购</Text>
           </View>
         )}
