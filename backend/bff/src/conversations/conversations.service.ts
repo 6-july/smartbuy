@@ -60,7 +60,10 @@ export class ConversationsService {
                 m.status AS merchant_status
          FROM conversations c
          JOIN merchants m ON m.id = c.merchant_id
-         WHERE c.user_id = $1 AND c.status = 'active' AND m.status = 'enabled'
+         WHERE c.user_id = $1
+           AND c.status = 'active'
+           AND c.last_message_time IS NOT NULL
+           AND m.status = 'enabled'
          ${keywordSql}
          ORDER BY c.merchant_id, c.last_message_time DESC NULLS LAST, c.created_at DESC
        ) latest

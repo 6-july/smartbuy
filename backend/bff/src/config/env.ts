@@ -13,11 +13,17 @@ export interface AppEnv {
   embeddingApiKey: string;
   embeddingModel: string;
   youzanProductPathTemplate: string;
+  conversationReuseWindowMinutes: number;
 }
 
 function required(name: string, value: string | undefined): string {
   if (!value?.trim()) throw new Error(`Missing required environment variable: ${name}`);
   return value.trim();
+}
+
+function positiveNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function loadEnv(): AppEnv {
@@ -41,5 +47,9 @@ export function loadEnv(): AppEnv {
     youzanProductPathTemplate:
       process.env.PRODUCT_PATH_TEMPLATE_YOUZAN ||
       "/pages/goods/detail/index?alias={alias}",
+    conversationReuseWindowMinutes: positiveNumber(
+      process.env.CONVERSATION_REUSE_WINDOW_MINUTES,
+      30,
+    ),
   };
 }

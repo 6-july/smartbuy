@@ -26,6 +26,27 @@ function extractScene(result: Taro.scanCode.SuccessCallbackResult) {
   return decodeURIComponent(sceneMatch?.[1] || path.trim());
 }
 
+function EmptyStateIcon() {
+  return (
+    <View className="home-state__empty-icon">
+      <View className="home-state__empty-card">
+        <View className="home-state__empty-row">
+          <View />
+          <View />
+        </View>
+        <View className="home-state__empty-row">
+          <View />
+          <View />
+        </View>
+      </View>
+      <View className="home-state__empty-bubble">
+        <View />
+        <View />
+      </View>
+    </View>
+  );
+}
+
 export default function HomePage() {
   const [keyword, setKeyword] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -72,7 +93,7 @@ export default function HomePage() {
 
   const openConversation = (item: Conversation) => {
     Taro.navigateTo({
-      url: `/pages/chat/index?merchantId=${encodeURIComponent(item.merchantId)}&conversationId=${encodeURIComponent(item.conversationId)}`,
+      url: `/pages/chat/index?merchantId=${encodeURIComponent(item.merchantId)}`,
     });
   };
 
@@ -175,7 +196,7 @@ export default function HomePage() {
 
         {!loading && !error && !loggedIn && (
           <View className="home-state">
-            <Text className="home-state__symbol">AI</Text>
+            <EmptyStateIcon />
             <Text className="home-state__title">登录后可查看最近咨询的店铺</Text>
             <Text className="home-state__detail">也可以先扫描商家的导购码，授权后开始咨询</Text>
             <Text className="home-state__link" onClick={() => Taro.navigateTo({ url: "/pages/auth/index" })}>去登录</Text>
@@ -184,7 +205,7 @@ export default function HomePage() {
 
         {!loading && !error && loggedIn && conversations.length === 0 && (
           <View className="home-state">
-            <Text className="home-state__symbol">AI</Text>
+            <EmptyStateIcon />
             <Text className="home-state__title">暂无咨询过的店铺</Text>
             <Text className="home-state__detail">扫描商家的导购码，开始智能选购</Text>
           </View>

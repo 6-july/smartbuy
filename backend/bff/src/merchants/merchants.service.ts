@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AppException } from "../common/app-exception";
+import { AppEnv } from "../config/env";
 import { DatabaseService } from "../database/database.service";
 import { CreateMerchantDto } from "./dto/create-merchant.dto";
 
@@ -20,7 +22,10 @@ export interface MerchantRow {
 
 @Injectable()
 export class MerchantsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly config: ConfigService<AppEnv, true>,
+  ) {}
 
   async create(dto: CreateMerchantDto) {
     const sceneCode = `m_${randomBytes(10).toString("base64url")}`;
@@ -103,6 +108,20 @@ export class MerchantsService {
   }
 
   private async getOrCreateConversation(userId: string, merchantId: string): Promise<string> {
+    const reuseWindowMinutes = this.config.get("conversationReuseWindowMinutes", { infer: true });
+    const existing = await this.database.query<{ id: string }>(
+      `SELECT id
+       FROM conversations
+       WHERE user_id = $1
+         AND merchant_id = $2
+         AND status = 'active'
+         AND COALESCE(last_message_time, created_at) >= now() - ($3::int * INTERVAL '1 minute')
+       ORDER BY COALESCE(last_message_time, created_at) DESC, created_at DESC
+       LIMIT 1`,
+      [userId, merchantId, reuseWindowMinutes],
+    );
+    if (existing.rows[0]) return existing.rows[0].id;
+
     const created = await this.database.query<{ id: string }>(
       `INSERT INTO conversations (user_id, merchant_id) VALUES ($1, $2) RETURNING id`,
       [userId, merchantId],

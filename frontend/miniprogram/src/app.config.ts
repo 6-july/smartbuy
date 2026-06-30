@@ -9,7 +9,8 @@ export default defineAppConfig({
   // },
   window: {
     navigationStyle: "custom",
-    backgroundTextStyle: "light",
+    navigationBarTextStyle: 'black',
+    navigationBarBackgroundColor: '#fff',
     backgroundColor: "#fff8f2",
   },
   // permission: {
