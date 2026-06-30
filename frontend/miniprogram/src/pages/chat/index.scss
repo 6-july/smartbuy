@@ -399,7 +399,7 @@
     padding: 7px;
     background: #ffffff;
     border: 1px solid rgba(255, 221, 195, 0.82);
-    border-radius: 44px;
+    border-radius: 48px;
     box-shadow: 0 12px 28px rgba(102, 54, 23, 0.06);
   }
 
@@ -525,13 +525,13 @@
   */
 
   &__input {
-    height: 70px;
+    height: 80px;
     padding: 0 22px;
     color: #2b170c;
     font-size: 27px;
     background: transparent;
     border: 0;
-    border-radius: 35px;
+    border-radius: 40px;
     flex: 1;
   }
 
@@ -542,7 +542,7 @@
   &__send {
     display: flex;
     width: 112px;
-    height: 70px;
+    height: 80px;
     align-items: center;
     justify-content: center;
     margin-left: 10px;
@@ -550,7 +550,7 @@
     font-size: 26px;
     font-weight: 800;
     background: linear-gradient(135deg, #ff8a24, #ff6900);
-    border-radius: 35px;
+    border-radius: 40px;
     box-shadow: 0 10px 20px rgba(255, 105, 0, 0.2);
 
     &--disabled {
