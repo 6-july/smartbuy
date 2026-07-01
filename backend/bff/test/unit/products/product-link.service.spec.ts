@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ProductLinkService } from "./product-link.service";
+import { ProductLinkService } from "../../../src/products/product-link.service";
 
 describe("ProductLinkService", () => {
   const service = new ProductLinkService({

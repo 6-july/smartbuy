@@ -1,5 +1,3 @@
-import { SearchIntent } from "./types";
-
 const CONTEXT_REFERENCE_PATTERN =
   /(这个|那个|这款|那款|它|上面|前面|刚才|之前|其中|第\s*[一二三四五六七八九十\d]+\s*[个款]|前一个|后一个)/;
 
@@ -66,15 +64,4 @@ export function resolveReferencedProductIds(
     return selected ? [selected.id] : [];
   }
   return recentProducts.map((product) => product.id);
-}
-
-export function shouldUseIntentModel(
-  question: string,
-  deterministicIntent: SearchIntent,
-  contextualFollowUp: boolean,
-): boolean {
-  if (contextualFollowUp) return true;
-  if (deterministicIntent.priceMin !== null || deterministicIntent.priceMax !== null) return false;
-  if (deterministicIntent.needRecommendation || deterministicIntent.keywords.length > 0) return false;
-  return question.trim().length > 0;
 }

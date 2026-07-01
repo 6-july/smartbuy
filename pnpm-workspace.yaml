@@ -16,6 +16,7 @@ allowBuilds:
   core-js: false
   core-js-pure: false
   esbuild: true
+  protobufjs: false
 
 overrides:
   multer: ^2.2.0

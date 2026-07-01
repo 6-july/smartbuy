@@ -16,27 +16,6 @@ export class RetrievalService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  async countProducts(merchantId: string): Promise<number> {
-    const result = await this.database.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM products
-       WHERE merchant_id = $1 AND sale_status = 'on_sale'
-         AND title NOT ILIKE '%非下单%' AND title NOT ILIKE '%单拍不送%'`,
-      [merchantId],
-    );
-    return Number(result.rows[0]?.count || 0);
-  }
-
-  async listCategories(merchantId: string): Promise<string[]> {
-    const result = await this.database.query<{ category: string }>(
-      `SELECT DISTINCT category FROM products
-       WHERE merchant_id = $1 AND sale_status = 'on_sale'
-         AND category IS NOT NULL AND category != ''
-       ORDER BY category`,
-      [merchantId],
-    );
-    return result.rows.map((r) => r.category);
-  }
-
   async search(
     merchantId: string,
     intent: SearchIntent,
@@ -86,9 +65,15 @@ export class RetrievalService {
     const result = await this.database.query<ProductRow & { retrieval_score: string }>(
       `SELECT *,
          (
-           similarity(title, $${keywordParameter}) * 0.45
-           + CASE WHEN title ILIKE '%' || $${keywordParameter} || '%' THEN 0.30 ELSE 0 END
-           + ${vectorExpression} * 0.20
+           similarity(title, $${keywordParameter}) * 0.35
+           + similarity(COALESCE(ai_text, ''), $${keywordParameter}) * 0.08
+           + CASE WHEN title ILIKE '%' || $${keywordParameter} || '%' THEN 0.32 ELSE 0 END
+           + CASE WHEN COALESCE(ai_text, '') ILIKE '%' || $${keywordParameter} || '%' THEN 0.18 ELSE 0 END
+           + CASE WHEN COALESCE(category, '') ILIKE '%' || $${keywordParameter} || '%' THEN 0.04 ELSE 0 END
+           + CASE WHEN COALESCE(tags::text, '') ILIKE '%' || $${keywordParameter} || '%'
+                    OR COALESCE(options::text, '') ILIKE '%' || $${keywordParameter} || '%'
+                  THEN 0.08 ELSE 0 END
+           + ${vectorExpression} * 0.15
            + ${contextBoostExpression}
            + CASE WHEN is_recommended THEN 0.03 ELSE 0 END
            + LEAST(sales, 1000)::numeric / 1000 * 0.02
@@ -100,10 +85,25 @@ export class RetrievalService {
       values,
     );
 
-    const minimumScore = intent.needRecommendation || priceSort ? 0 : 0.08;
+    const hasPriceConstraint = intent.priceMax !== null || intent.priceMin !== null;
+    const minimumScore = intent.needRecommendation || priceSort || hasPriceConstraint ? 0 : 0.08;
     return result.rows
       .filter((row) => Number(row.retrieval_score) >= minimumScore)
       .map((row) => toRetrievedProduct(row, Number(row.retrieval_score)));
+  }
+
+  async findCheapest(merchantId: string, limit = 5): Promise<RetrievedProduct[]> {
+    const result = await this.database.query<ProductRow>(
+      `SELECT * FROM products
+       WHERE merchant_id = $1
+         AND sale_status = 'on_sale'
+         AND title NOT ILIKE '%非下单%'
+         AND title NOT ILIKE '%单拍不送%'
+       ORDER BY min_price ASC, sales DESC, updated_at DESC
+       LIMIT $2`,
+      [merchantId, limit],
+    );
+    return result.rows.map((row) => toRetrievedProduct(row, 1));
   }
 
   async findByIds(merchantId: string, productIds: string[]): Promise<RetrievedProduct[]> {

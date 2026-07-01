@@ -12,6 +12,10 @@ export interface AppEnv {
   embeddingApiUrl: string;
   embeddingApiKey: string;
   embeddingModel: string;
+  langfuseSecretKey: string;
+  langfusePublicKey: string;
+  langfuseBaseUrl: string;
+  langfuseExportMode: "batched" | "immediate";
   youzanProductPathTemplate: string;
   conversationReuseWindowMinutes: number;
   messageProcessingTimeoutSeconds: number;
@@ -45,6 +49,11 @@ export function loadEnv(): AppEnv {
     embeddingApiUrl: process.env.EMBEDDING_API_URL || "",
     embeddingApiKey: process.env.EMBEDDING_API_KEY || "",
     embeddingModel: process.env.EMBEDDING_MODEL || "",
+    langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY || "",
+    langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY || "",
+    langfuseBaseUrl: process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com",
+    langfuseExportMode:
+      process.env.LANGFUSE_EXPORT_MODE === "immediate" ? "immediate" : "batched",
     youzanProductPathTemplate:
       process.env.PRODUCT_PATH_TEMPLATE_YOUZAN ||
       "/pages/goods/detail/index?alias={alias}",

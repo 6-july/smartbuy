@@ -1,9 +1,9 @@
 import { ConfigService } from "@nestjs/config";
 import { HttpStatus } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
-import { AppException } from "../common/app-exception";
-import { AppEnv } from "../config/env";
-import { ConversationsService } from "./conversations.service";
+import { AppException } from "../../../src/common/app-exception";
+import { AppEnv } from "../../../src/config/env";
+import { ConversationsService } from "../../../src/conversations/conversations.service";
 
 const conversation = {
   id: "conversation-id",

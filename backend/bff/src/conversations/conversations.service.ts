@@ -152,6 +152,7 @@ export class ConversationsService {
         .reverse()
         .filter((message) => message.id !== claim.userMessageId)
         .map((message) => ({ role: message.role, content: message.content }));
+      const recentProducts = extractRecentProducts(historyResult.rows);
       const guide = await this.ai.guide({
         merchant: {
           id: conversation.merchant_id,
@@ -162,7 +163,12 @@ export class ConversationsService {
         },
         question: dto.content,
         history,
-        recentProducts: extractRecentProducts(historyResult.rows),
+        recentProducts,
+        trace: {
+          userId,
+          sessionId: conversationId,
+          clientMessageId: dto.clientMessageId || "",
+        },
       });
 
       const cards = guide.products.map(({ row }) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RetrievalService } from "./retrieval.service";
+import { RetrievalService } from "../../../src/ai/retrieval.service";
 
 describe("RetrievalService", () => {
   it("boosts a product referenced by the previous response", async () => {
@@ -57,5 +57,60 @@ describe("RetrievalService", () => {
     });
 
     expect(query.mock.calls[0][0]).toContain("ORDER BY min_price ASC");
+  });
+
+  it("scores product detail text when matching flavor keywords", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const service = new RetrievalService(
+      { query } as never,
+      { embed: vi.fn().mockResolvedValue(null) } as never,
+    );
+
+    await service.search("merchant-id", {
+      queryText: "我想要巧克力味道的",
+      keywords: ["巧克力"],
+      priceMin: null,
+      priceMax: null,
+      needRecommendation: false,
+    });
+
+    expect(query.mock.calls[0][0]).toContain("ai_text");
+    expect(query.mock.calls[0][0]).toContain("tags::text");
+    expect(query.mock.calls[0][0]).toContain("options::text");
+    expect(query.mock.calls[0][1]).toContain("巧克力");
+  });
+
+  it("keeps zero-score products when a price boundary is present", async () => {
+    const productId = "271a7ad7-8722-45e8-b37c-19370070b438";
+    const query = vi.fn().mockResolvedValue({
+      rows: [{
+        id: productId,
+        title: "海盐奥利奥",
+        category: "蛋糕",
+        description: null,
+        display_price: "128",
+        min_price: "128",
+        max_price: "258",
+        tags: [],
+        options: [],
+        ai_text: "海盐奥利奥",
+        retrieval_score: "0",
+      }],
+    });
+    const service = new RetrievalService(
+      { query } as never,
+      { embed: vi.fn().mockResolvedValue(null) } as never,
+    );
+
+    const result = await service.search("merchant-id", {
+      queryText: "128元以内",
+      keywords: [],
+      priceMin: null,
+      priceMax: 128,
+      needRecommendation: false,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.row.id).toBe(productId);
   });
 });

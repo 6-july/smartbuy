@@ -24,8 +24,3 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
-
-export interface GuideReply {
-  reply: string;
-  productIds: string[];
-}

@@ -7,6 +7,19 @@ import "./index.scss";
 const COMPACT_SPEC_FULL_LIMIT = 4;
 const COMPACT_SPEC_MORE_LIMIT = 3;
 
+type WechatMiniProgramApi = {
+  openEmbeddedMiniProgram?: (options: {
+    appId: string;
+    path?: string;
+    extraData?: Record<string, unknown>;
+    envVersion?: "develop" | "trial" | "release";
+    success?: () => void;
+    fail?: (res: { errMsg?: string }) => void;
+  }) => void;
+};
+
+declare const wx: WechatMiniProgramApi | undefined;
+
 interface ProductCardProps {
   product: ProductCardData;
   variant?: "default" | "compact";
@@ -29,9 +42,40 @@ function getPriceRange(product: ProductCardData) {
 function getTargetPath(product: ProductCardData) {
   if (!product.miniProgramPath) return "";
   const params = Object.entries(product.miniProgramParams || {})
+    .filter(([key]) => !hasQueryParam(product.miniProgramPath || "", key))
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join("&");
-  return params ? `${product.miniProgramPath}?${params}` : product.miniProgramPath;
+  if (!params) return product.miniProgramPath;
+  const separator = product.miniProgramPath.includes("?") ? "&" : "?";
+  return `${product.miniProgramPath}${separator}${params}`;
+}
+
+function hasQueryParam(path: string, targetKey: string) {
+  const queryStart = path.indexOf("?");
+  if (queryStart < 0) return false;
+  const hashStart = path.indexOf("#", queryStart);
+  const query = path.slice(queryStart + 1, hashStart < 0 ? undefined : hashStart);
+  return query.split("&").some((item) => {
+    const [key] = item.split("=");
+    return decodeURIComponent(key || "") === targetKey;
+  });
+}
+
+function openEmbeddedMiniProgram(appId: string, path: string) {
+  const wxApi = typeof wx !== "undefined"
+    ? wx
+    : (globalThis as { wx?: WechatMiniProgramApi }).wx;
+  if (!wxApi?.openEmbeddedMiniProgram) {
+    return Promise.reject(new Error("openEmbeddedMiniProgram is not supported"));
+  }
+  return new Promise<void>((resolve, reject) => {
+    wxApi.openEmbeddedMiniProgram?.({
+      appId,
+      path,
+      success: () => resolve(),
+      fail: (res) => reject(new Error(res.errMsg || "openEmbeddedMiniProgram failed")),
+    });
+  });
 }
 
 export default function ProductCard({ product, variant = "default", onShowSpecs }: ProductCardProps) {
@@ -54,10 +98,17 @@ export default function ProductCard({ product, variant = "default", onShowSpecs 
       await Taro.showToast({ title: "暂时无法打开商品详情", icon: "none" });
       return;
     }
-    await Taro.navigateToMiniProgram({
-      appId: product.miniProgramAppId,
-      path: getTargetPath(product),
-    });
+    const path = getTargetPath(product);
+    try {
+      await openEmbeddedMiniProgram(product.miniProgramAppId, path);
+    } catch (error) {
+      console.warn("[ProductCard] openEmbeddedMiniProgram failed", {
+        appId: product.miniProgramAppId,
+        path,
+        error,
+      });
+      await Taro.showToast({ title: "暂时无法半屏打开商品", icon: "none" });
+    }
   };
 
   const previewImage = (index: number) => {
