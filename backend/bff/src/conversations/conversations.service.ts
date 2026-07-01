@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AiOrchestratorService } from "../ai/ai-orchestrator.service";
 import { ChatMessage } from "../ai/domain";
 import { AppException } from "../common/app-exception";
+import { AppEnv } from "../config/env";
 import { DatabaseService } from "../database/database.service";
 import { ProductsService } from "../products/products.service";
 import { AdminConversationQueryDto } from "./dto/admin-conversation-query.dto";
@@ -31,7 +34,18 @@ interface MessageRow {
   message_type: string;
   products: unknown[];
   client_message_id: string | null;
+  processing_status: "processing" | "completed" | "failed";
+  processing_started_at: Date | null;
+  processing_completed_at: Date | null;
+  processing_attempt_id: string | null;
+  reply_to_message_id: string | null;
   created_at: Date;
+}
+
+export interface MessageReply {
+  messageId: string;
+  reply: string;
+  products: unknown[];
 }
 
 @Injectable()
@@ -40,6 +54,7 @@ export class ConversationsService {
     private readonly database: DatabaseService,
     private readonly ai: AiOrchestratorService,
     private readonly products: ProductsService,
+    private readonly config: ConfigService<AppEnv, true>,
   ) {}
 
   async listForUser(userId: string, keyword?: string) {
@@ -120,123 +135,138 @@ export class ConversationsService {
       );
     }
 
-    const existing = await this.findIdempotentReply(conversationId, dto.clientMessageId);
-    if (existing) return existing;
+    const claim = await this.claimUserMessage(conversation, userId, dto);
+    if (claim.reply) return claim.reply;
+    const processingAttemptId = claim.processingAttemptId;
+    if (!processingAttemptId) throw new Error("Claimed message is missing a processing attempt id");
 
-    const insertedUserMessage = await this.database.transaction(async (client) => {
-      const inserted = await client.query(
-        `INSERT INTO messages (
-           conversation_id, user_id, merchant_id, role, content,
-           message_type, client_message_id
-         ) VALUES ($1, $2, $3, 'user', $4, 'text', $5)
-         ON CONFLICT (conversation_id, client_message_id) WHERE client_message_id IS NOT NULL
-         DO NOTHING`,
-        [conversationId, userId, conversation.merchant_id, dto.content, dto.clientMessageId],
+    try {
+      const historyResult = await this.database.query<MessageRow>(
+        `SELECT * FROM messages
+         WHERE conversation_id = $1
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        [conversationId],
       );
-      await client.query(
-        `UPDATE conversations
-         SET last_message = $2, last_message_time = now()
-         WHERE id = $1`,
-        [conversationId, dto.content],
-      );
-      return inserted.rowCount === 1;
-    });
+      const history: ChatMessage[] = historyResult.rows
+        .reverse()
+        .filter((message) => message.id !== claim.userMessageId)
+        .map((message) => ({ role: message.role, content: message.content }));
+      const guide = await this.ai.guide({
+        merchant: {
+          id: conversation.merchant_id,
+          name: conversation.merchant_name,
+          description: conversation.merchant_description,
+          phone: conversation.merchant_phone,
+          industry: conversation.merchant_industry,
+        },
+        question: dto.content,
+        history,
+        recentProducts: extractRecentProducts(historyResult.rows),
+      });
 
-    if (!insertedUserMessage) {
-      const completed = await this.findIdempotentReply(conversationId, dto.clientMessageId);
-      if (completed) return completed;
-      throw new AppException(
-        "MESSAGE_PROCESSING",
-        "该消息正在处理中，请稍后重试",
-        HttpStatus.CONFLICT,
-      );
+      const cards = guide.products.map(({ row }) => {
+        const product = this.products.toProduct(row);
+        const images = (product.images as Array<{ url?: string }>)
+          .map((img) => img.url)
+          .filter(Boolean) as string[];
+        const specs = (product.options as Array<{ name: string; type?: string; options?: Array<{ name: string; price?: number }> }>)
+          .filter((opt) => opt.type === "price" && opt.options?.length)
+          .map((opt) => ({
+            name: opt.name,
+            values: opt.options!.map((v) => ({ label: v.name, price: v.price ?? null })),
+          }));
+        return {
+          productId: product.id,
+          name: product.title,
+          tags: product.tags,
+          description: product.description,
+          price: product.displayPrice,
+          minPrice: product.minPrice,
+          maxPrice: product.maxPrice,
+          imageUrl: images[0] || null,
+          images,
+          specs,
+          miniProgramAppId: conversation.merchant_app_id,
+          miniProgramPath: product.miniProgramPath,
+          miniProgramParams: product.miniProgramParams,
+        };
+      });
+
+      return await this.database.transaction(async (client) => {
+        const completed = await client.query<{ id: string }>(
+          `UPDATE messages
+           SET processing_status = 'completed', processing_completed_at = now()
+           WHERE id = $1
+             AND processing_status = 'processing'
+             AND processing_attempt_id = $2
+           RETURNING id`,
+          [claim.userMessageId, processingAttemptId],
+        );
+        if (!completed.rows[0]) {
+          const existing = await client.query<MessageRow>(
+            `SELECT * FROM messages WHERE reply_to_message_id = $1 LIMIT 1`,
+            [claim.userMessageId],
+          );
+          const row = existing.rows[0];
+          if (row) {
+            return { messageId: row.id, reply: row.content, products: row.products };
+          }
+          throw new AppException(
+            "MESSAGE_PROCESSING",
+            "该消息已由新的请求接管处理",
+            HttpStatus.CONFLICT,
+          );
+        }
+
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO messages (
+             conversation_id, user_id, merchant_id, role, content,
+             message_type, products, reply_to_message_id
+           ) VALUES ($1, $2, $3, 'assistant', $4, $5, $6::jsonb, $7)
+           ON CONFLICT (reply_to_message_id) WHERE reply_to_message_id IS NOT NULL
+           DO NOTHING
+           RETURNING id`,
+          [
+            conversationId,
+            userId,
+            conversation.merchant_id,
+            guide.reply,
+            cards.length > 0 ? "product_card" : "text",
+            JSON.stringify(cards),
+            claim.userMessageId,
+          ],
+        );
+
+        let reply: MessageReply;
+        if (inserted.rows[0]) {
+          reply = {
+            messageId: inserted.rows[0].id,
+            reply: guide.reply,
+            products: cards,
+          };
+        } else {
+          const existing = await client.query<MessageRow>(
+            `SELECT * FROM messages WHERE reply_to_message_id = $1 LIMIT 1`,
+            [claim.userMessageId],
+          );
+          const row = existing.rows[0];
+          if (!row) throw new Error("Reply conflict found without an existing reply");
+          reply = { messageId: row.id, reply: row.content, products: row.products };
+        }
+
+        await client.query(
+          `UPDATE conversations
+           SET last_message = $2, last_message_time = now()
+           WHERE id = $1`,
+          [conversationId, reply.reply],
+        );
+        return reply;
+      });
+    } catch (error) {
+      await this.markMessageFailed(claim.userMessageId, processingAttemptId);
+      throw error;
     }
-
-    const historyResult = await this.database.query<MessageRow>(
-      `SELECT * FROM messages
-       WHERE conversation_id = $1
-       ORDER BY created_at DESC
-       LIMIT 10`,
-      [conversationId],
-    );
-    const history: ChatMessage[] = historyResult.rows
-      .reverse()
-      .filter((message) => message.client_message_id !== dto.clientMessageId)
-      .map((message) => ({ role: message.role, content: message.content }));
-    const guide = await this.ai.guide({
-      merchant: {
-        id: conversation.merchant_id,
-        name: conversation.merchant_name,
-        description: conversation.merchant_description,
-        phone: conversation.merchant_phone,
-        industry: conversation.merchant_industry,
-      },
-      question: dto.content,
-      history,
-    });
-
-    let cards = guide.products.map(({ row }) => {
-      const product = this.products.toProduct(row);
-      const images = (product.images as Array<{ url?: string }>)
-        .map((img) => img.url)
-        .filter(Boolean) as string[];
-      const specs = (product.options as Array<{ name: string; type?: string; options?: Array<{ name: string; price?: number }> }>)
-        .filter((opt) => opt.type === "price" && opt.options?.length)
-        .map((opt) => ({
-          name: opt.name,
-          values: opt.options!.map((v) => ({ label: v.name, price: v.price ?? null })),
-        }));
-      return {
-        productId: product.id,
-        name: product.title,
-        tags: product.tags,
-        description: product.description,
-        price: product.displayPrice,
-        minPrice: product.minPrice,
-        maxPrice: product.maxPrice,
-        imageUrl: images[0] || null,
-        images,
-        specs,
-        miniProgramAppId: conversation.merchant_app_id,
-        miniProgramPath: product.miniProgramPath,
-        miniProgramParams: product.miniProgramParams,
-      };
-    });
-
-    if (cards.length === 0 && guide.reply) {
-      const lastAssistant = historyResult.rows.find(
-        (m) => m.role === "assistant" && Array.isArray(m.products) && m.products.length > 0,
-      );
-      if (lastAssistant) {
-        const prevProducts = lastAssistant.products as Array<{ name?: string; [k: string]: unknown }>;
-        cards = prevProducts.filter((p) => p.name && guide.reply.includes(p.name)).slice(0, 3) as typeof cards;
-      }
-    }
-    const saved = await this.database.transaction(async (client) => {
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO messages (
-           conversation_id, user_id, merchant_id, role, content,
-           message_type, products
-         ) VALUES ($1, $2, $3, 'assistant', $4, $5, $6::jsonb)
-         RETURNING id`,
-        [
-          conversationId,
-          userId,
-          conversation.merchant_id,
-          guide.reply,
-          cards.length > 0 ? "product_card" : "text",
-          JSON.stringify(cards),
-        ],
-      );
-      await client.query(
-        `UPDATE conversations
-         SET last_message = $2, last_message_time = now()
-         WHERE id = $1`,
-        [conversationId, guide.reply],
-      );
-      return inserted.rows[0].id;
-    });
-    return { messageId: saved, reply: guide.reply, products: cards };
   }
 
   async adminList(query: AdminConversationQueryDto) {
@@ -313,26 +343,139 @@ export class ConversationsService {
     return result.rows[0];
   }
 
-  private async findIdempotentReply(conversationId: string, clientMessageId: string) {
-    const result = await this.database.query<MessageRow>(
-      `SELECT a.*
-       FROM messages u
-       JOIN LATERAL (
-         SELECT * FROM messages candidate
-         WHERE candidate.conversation_id = u.conversation_id
-           AND candidate.role = 'assistant'
-           AND candidate.created_at >= u.created_at
-         ORDER BY candidate.created_at ASC
-         LIMIT 1
-       ) a ON true
-       WHERE u.conversation_id = $1
-         AND u.client_message_id = $2
-       LIMIT 1`,
-      [conversationId, clientMessageId],
-    );
-    const message = result.rows[0];
-    if (!message) return null;
-    return { messageId: message.id, reply: message.content, products: message.products };
+  private async claimUserMessage(
+    conversation: ConversationRow,
+    userId: string,
+    dto: SendMessageDto,
+  ): Promise<{ userMessageId: string; processingAttemptId?: string; reply?: MessageReply }> {
+    const timeoutSeconds = this.config.get("messageProcessingTimeoutSeconds", { infer: true });
+    const processingAttemptId = randomUUID();
+    return this.database.transaction(async (client) => {
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO messages (
+           conversation_id, user_id, merchant_id, role, content,
+           message_type, client_message_id, processing_status,
+           processing_started_at, processing_attempt_id
+         ) VALUES ($1, $2, $3, 'user', $4, 'text', $5, 'processing', now(), $6)
+         ON CONFLICT (conversation_id, client_message_id) WHERE client_message_id IS NOT NULL
+         DO NOTHING
+         RETURNING id`,
+        [
+          conversation.id,
+          userId,
+          conversation.merchant_id,
+          dto.content,
+          dto.clientMessageId,
+          processingAttemptId,
+        ],
+      );
+      if (inserted.rows[0]) {
+        await client.query(
+          `UPDATE conversations
+           SET last_message = $2, last_message_time = now()
+           WHERE id = $1`,
+          [conversation.id, dto.content],
+        );
+        return { userMessageId: inserted.rows[0].id, processingAttemptId };
+      }
+
+      const existingUser = await client.query<MessageRow>(
+        `SELECT * FROM messages
+         WHERE conversation_id = $1 AND client_message_id = $2
+         LIMIT 1`,
+        [conversation.id, dto.clientMessageId],
+      );
+      const userMessage = existingUser.rows[0];
+      if (!userMessage) throw new Error("Message conflict found without an existing message");
+      if (userMessage.content !== dto.content) {
+        throw new AppException(
+          "IDEMPOTENCY_KEY_REUSED",
+          "同一个消息标识不能用于不同内容",
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      const explicitReply = await client.query<MessageRow>(
+        `SELECT * FROM messages WHERE reply_to_message_id = $1 LIMIT 1`,
+        [userMessage.id],
+      );
+      if (explicitReply.rows[0]) {
+        const row = explicitReply.rows[0];
+        return {
+          userMessageId: userMessage.id,
+          reply: { messageId: row.id, reply: row.content, products: row.products },
+        };
+      }
+
+      if (userMessage.processing_status === "completed") {
+        const legacyReply = await client.query<MessageRow>(
+          `SELECT * FROM messages
+           WHERE conversation_id = $1
+             AND role = 'assistant'
+             AND reply_to_message_id IS NULL
+             AND created_at >= $2
+           ORDER BY created_at ASC
+           LIMIT 1`,
+          [conversation.id, userMessage.created_at],
+        );
+        if (legacyReply.rows[0]) {
+          const row = legacyReply.rows[0];
+          return {
+            userMessageId: userMessage.id,
+            reply: { messageId: row.id, reply: row.content, products: row.products },
+          };
+        }
+      }
+
+      const claimed = await client.query<{ id: string }>(
+        `UPDATE messages
+         SET processing_status = 'processing',
+             processing_started_at = now(),
+             processing_completed_at = NULL,
+             processing_attempt_id = $3
+         WHERE id = $1
+           AND (
+             processing_status IN ('failed', 'completed')
+             OR processing_started_at IS NULL
+             OR processing_started_at < now() - ($2::int * INTERVAL '1 second')
+           )
+         RETURNING id`,
+        [userMessage.id, timeoutSeconds, processingAttemptId],
+      );
+      if (!claimed.rows[0]) {
+        throw new AppException(
+          "MESSAGE_PROCESSING",
+          "该消息正在处理中，请稍后重试",
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      await client.query(
+        `UPDATE conversations
+         SET last_message = $2, last_message_time = now()
+         WHERE id = $1`,
+        [conversation.id, userMessage.content],
+      );
+      return { userMessageId: claimed.rows[0].id, processingAttemptId };
+    });
+  }
+
+  private async markMessageFailed(messageId: string, processingAttemptId: string): Promise<void> {
+    try {
+      await this.database.query(
+        `UPDATE messages
+         SET processing_status = 'failed', processing_completed_at = now()
+         WHERE id = $1
+           AND processing_status = 'processing'
+           AND processing_attempt_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM messages reply WHERE reply.reply_to_message_id = messages.id
+           )`,
+        [messageId, processingAttemptId],
+      );
+    } catch (error) {
+      console.error("[ConversationsService] failed to mark message as failed:", error);
+    }
   }
 
   private mapMessage(row: MessageRow) {
@@ -345,4 +488,28 @@ export class ConversationsService {
       createdAt: row.created_at,
     };
   }
+}
+
+function extractRecentProducts(messages: MessageRow[]): Array<{ id: string; name: string }> {
+  const latest = messages.find(
+    (message) =>
+      message.role === "assistant" &&
+      Array.isArray(message.products) &&
+      message.products.length > 0,
+  );
+  if (!latest) return [];
+
+  return latest.products
+    .map((product) => {
+      if (typeof product !== "object" || product === null) return null;
+      const item = product as { productId?: unknown; name?: unknown };
+      return typeof item.productId === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.productId) &&
+        typeof item.name === "string" &&
+        item.name.trim()
+        ? { id: item.productId, name: item.name.trim() }
+        : null;
+    })
+    .filter((product): product is { id: string; name: string } => Boolean(product))
+    .slice(0, 5);
 }

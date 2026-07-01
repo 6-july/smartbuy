@@ -45,6 +45,9 @@ export class ChatModelService {
           minPrice: c.minPrice,
           maxPrice: c.maxPrice,
           category: c.category,
+          description: c.description,
+          tags: c.tags,
+          details: trimPromptText(c.aiText),
           priceOptions: getCandidatePriceOptions(c),
         })),
       ),
@@ -82,13 +85,32 @@ export class ChatModelService {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
-        const parsed = JSON.parse(jsonMatch[0]) as GuideReply;
-        parsed.reply = stripMarkdown(parsed.reply);
-        return parsed;
+        const parsed = normalizeGuideReply(JSON.parse(jsonMatch[0]));
+        if (parsed) return parsed;
       } catch { /* fall through to text reply */ }
     }
     return { reply: stripMarkdown(content), productIds: [] };
   }
+}
+
+function trimPromptText(value: string, maxLength = 1500): string {
+  const normalized = value.trim();
+  return normalized.length <= maxLength
+    ? normalized
+    : `${normalized.slice(0, maxLength)}...`;
+}
+
+export function normalizeGuideReply(value: unknown): GuideReply | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.reply !== "string" || !record.reply.trim()) return null;
+  const productIds = Array.isArray(record.productIds)
+    ? record.productIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  return {
+    reply: stripMarkdown(record.reply),
+    productIds: [...new Set(productIds)],
+  };
 }
 
 function stripMarkdown(text: string): string {

@@ -91,6 +91,12 @@ CREATE TABLE IF NOT EXISTS messages (
     products jsonb NOT NULL DEFAULT '[]'::jsonb
         CHECK (jsonb_typeof(products) = 'array'),
     client_message_id varchar(128),
+    processing_status varchar(20) NOT NULL DEFAULT 'completed'
+        CHECK (processing_status IN ('processing', 'completed', 'failed')),
+    processing_started_at timestamptz,
+    processing_completed_at timestamptz,
+    processing_attempt_id uuid,
+    reply_to_message_id uuid REFERENCES messages(id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -127,6 +133,10 @@ CREATE INDEX IF NOT EXISTS idx_messages_merchant_created
 CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_client_message
     ON messages (conversation_id, client_message_id)
     WHERE client_message_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_reply_to_message
+    ON messages (reply_to_message_id)
+    WHERE reply_to_message_id IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS trigger

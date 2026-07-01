@@ -14,6 +14,7 @@ export interface AppEnv {
   embeddingModel: string;
   youzanProductPathTemplate: string;
   conversationReuseWindowMinutes: number;
+  messageProcessingTimeoutSeconds: number;
 }
 
 function required(name: string, value: string | undefined): string {
@@ -50,6 +51,10 @@ export function loadEnv(): AppEnv {
     conversationReuseWindowMinutes: positiveNumber(
       process.env.CONVERSATION_REUSE_WINDOW_MINUTES,
       30,
+    ),
+    messageProcessingTimeoutSeconds: positiveNumber(
+      process.env.MESSAGE_PROCESSING_TIMEOUT_SECONDS,
+      120,
     ),
   };
 }

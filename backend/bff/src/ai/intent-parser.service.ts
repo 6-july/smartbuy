@@ -1,12 +1,19 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppEnv } from "../config/env";
-import { parseSearchIntent, SearchIntent } from "./domain";
+import {
+  ChatMessage,
+  parseSearchIntent,
+  RecentProductReference,
+  SearchIntent,
+  shouldUseIntentModel,
+} from "./domain";
 
 const INTENT_SYSTEM_PROMPT = `你是一个购物意图解析器。从用户的消息中提取搜索意图，返回严格 JSON，不要输出任何其他内容。
 
 格式：
 {
+  "queryText": "结合上下文改写后的完整独立问题",
   "keywords": ["关键词1", "关键词2"],
   "priceMin": null 或数字,
   "priceMax": null 或数字,
@@ -14,6 +21,7 @@ const INTENT_SYSTEM_PROMPT = `你是一个购物意图解析器。从用户的�
 }
 
 规则：
+- queryText：如果当前消息引用了上文商品（如“第二个呢”“这个有什么尺寸”），结合对话历史改写为包含商品名称的完整问题；否则保持原问题
 - keywords：提取与商品相关的名词（口味、类型、用途、场景等），去掉语气词和停用词
 - priceMin/priceMax：提取价格区间，"200以内"→priceMax:200，"100以上"→priceMin:100，"200左右"→priceMin:150,priceMax:250
 - needRecommendation：用户请求推荐、不确定要什么时为 true
@@ -23,13 +31,25 @@ const INTENT_SYSTEM_PROMPT = `你是一个购物意图解析器。从用户的�
 export class IntentParserService {
   constructor(private readonly config: ConfigService<AppEnv, true>) {}
 
-  async parse(question: string): Promise<SearchIntent> {
+  async parse(
+    question: string,
+    history: ChatMessage[] = [],
+    contextualFollowUp = false,
+    recentProducts: RecentProductReference[] = [],
+  ): Promise<SearchIntent> {
     const regexResult = parseSearchIntent(question);
 
     const apiUrl = this.config.get("aiChatApiUrl", { infer: true });
     const apiKey = this.config.get("aiChatApiKey", { infer: true });
     const model = this.config.get("aiChatModel", { infer: true });
-    if (!apiUrl || !apiKey || !model) return regexResult;
+    if (
+      !apiUrl ||
+      !apiKey ||
+      !model ||
+      !shouldUseIntentModel(question, regexResult, contextualFollowUp)
+    ) {
+      return regexResult;
+    }
 
     try {
       const response = await fetch(apiUrl, {
@@ -44,6 +64,15 @@ export class IntentParserService {
           max_tokens: 200,
           messages: [
             { role: "system", content: INTENT_SYSTEM_PROMPT },
+            ...(recentProducts.length > 0
+              ? [{
+                  role: "system" as const,
+                  content: `上一轮展示的商品顺序：${recentProducts
+                    .map((product, index) => `${index + 1}. ${product.name}`)
+                    .join("；")}`,
+                }]
+              : []),
+            ...history.slice(-4),
             { role: "user", content: question },
           ],
         }),
@@ -61,22 +90,31 @@ export class IntentParserService {
       if (!jsonMatch) return regexResult;
 
       const parsed = JSON.parse(jsonMatch[0]) as {
+        queryText?: string;
         keywords?: string[];
         priceMin?: number | null;
         priceMax?: number | null;
         needRecommendation?: boolean;
       };
 
+      const queryText = typeof parsed.queryText === "string" && parsed.queryText.trim()
+        ? parsed.queryText.trim()
+        : question.trim();
+      const rewrittenRegexResult = parseSearchIntent(queryText);
       return {
-        queryText: question.trim(),
+        queryText,
         keywords: Array.isArray(parsed.keywords)
           ? parsed.keywords.filter((k) => typeof k === "string" && k.trim().length > 0)
-          : regexResult.keywords,
-        priceMin: typeof parsed.priceMin === "number" ? parsed.priceMin : regexResult.priceMin,
-        priceMax: typeof parsed.priceMax === "number" ? parsed.priceMax : regexResult.priceMax,
+          : rewrittenRegexResult.keywords,
+        priceMin: typeof parsed.priceMin === "number"
+          ? parsed.priceMin
+          : rewrittenRegexResult.priceMin,
+        priceMax: typeof parsed.priceMax === "number"
+          ? parsed.priceMax
+          : rewrittenRegexResult.priceMax,
         needRecommendation: typeof parsed.needRecommendation === "boolean"
           ? parsed.needRecommendation
-          : regexResult.needRecommendation,
+          : rewrittenRegexResult.needRecommendation,
       };
     } catch (err) {
       console.warn("[IntentParser] LLM parse failed, falling back to regex:", err);
