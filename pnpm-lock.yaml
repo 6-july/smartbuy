@@ -12,15 +12,6 @@ importers:
 
   .: {}
 
-  backend/ai:
-    devDependencies:
-      typescript:
-        specifier: ^5.9.0
-        version: 5.9.2
-      vitest:
-        specifier: ^3.2.0
-        version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.2)(jiti@2.7.0)(jsdom@24.0.0)(less@4.6.7)(lightningcss@1.32.0)(sass@1.101.0)(stylus@0.64.0)(terser@5.48.0)(tsx@4.22.4)
-
   backend/bff:
     dependencies:
       '@nestjs/common':
@@ -41,9 +32,6 @@ importers:
       '@nestjs/swagger':
         specifier: ^11.2.0
         version: 11.4.4(@nestjs/common@11.1.27(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.27)(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)
-      '@smartbuy/ai':
-        specifier: workspace:*
-        version: link:../ai
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1

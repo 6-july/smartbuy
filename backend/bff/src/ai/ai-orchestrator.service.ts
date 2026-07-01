@@ -1,9 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import {
-  buildDeterministicReply,
-  ChatMessage,
-  sanitizeGuideReply,
-} from "@smartbuy/ai";
+import { buildDeterministicReply, ChatMessage, sanitizeGuideReply } from "./domain";
 import { ChatModelService } from "./chat-model.service";
 import { IntentParserService } from "./intent-parser.service";
 import { RetrievalService, RetrievedProduct } from "./retrieval.service";

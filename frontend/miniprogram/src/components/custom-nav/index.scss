@@ -52,16 +52,17 @@
     height: 64px;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.66);
-    border: 1px solid rgba(255, 230, 210, 0.5);
+    color: #2b170c;
+    background: #ffffff;
+    border: 1px solid rgba(255, 223, 198, 0.72);
     border-radius: 50%;
-    box-shadow: 0 10px 24px rgba(72, 40, 18, 0.08);
+    box-shadow: none;
     backdrop-filter: blur(12px);
   }
 
   &__back-icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     margin-left: 6px;
     border-bottom: 4px solid currentColor;
     border-left: 4px solid currentColor;

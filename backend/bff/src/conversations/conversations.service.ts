@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
-import { ChatMessage } from "@smartbuy/ai";
 import { AiOrchestratorService } from "../ai/ai-orchestrator.service";
+import { ChatMessage } from "../ai/domain";
 import { AppException } from "../common/app-exception";
 import { DatabaseService } from "../database/database.service";
 import { ProductsService } from "../products/products.service";

@@ -3,11 +3,11 @@
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "build": "pnpm --filter @smartbuy/ai build && pnpm --filter @smartbuy/bff build && pnpm --filter @smartbuy/miniprogram build:weapp",
-    "test": "pnpm --filter @smartbuy/ai test && pnpm --filter @smartbuy/bff test",
-    "dev:bff": "pnpm --filter @smartbuy/ai build && pnpm --filter @smartbuy/bff start:dev",
+    "build": "pnpm --filter @smartbuy/bff build && pnpm --filter @smartbuy/miniprogram build:weapp",
+    "test": "pnpm --filter @smartbuy/bff test",
+    "dev:bff": "pnpm --filter @smartbuy/bff start:dev",
     "dev:miniprogram": "pnpm --filter @smartbuy/miniprogram dev:weapp",
     "dev:miniprogram:h5": "pnpm --filter @smartbuy/miniprogram dev:h5",
-    "docs:api": "pnpm --filter @smartbuy/ai build && pnpm --filter @smartbuy/bff docs:generate"
+    "docs:api": "pnpm --filter @smartbuy/bff docs:generate"
   }
 }

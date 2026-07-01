@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseSearchIntent } from "./search-intent";
 import { buildDeterministicReply, sanitizeGuideReply } from "./reply";
+import { parseSearchIntent } from "./search-intent";
 import { ProductCandidate } from "./types";
 
 describe("parseSearchIntent", () => {

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppEnv } from "../config/env";
 import {
   buildDeterministicReply,
   ChatMessage,
@@ -7,8 +8,7 @@ import {
   GuideReply,
   ProductCandidate,
   SearchIntent,
-} from "@smartbuy/ai";
-import { AppEnv } from "../config/env";
+} from "./domain";
 import { buildSystemPrompt } from "./prompt-template";
 
 @Injectable()

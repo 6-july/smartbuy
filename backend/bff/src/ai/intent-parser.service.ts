@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { parseSearchIntent, SearchIntent } from "@smartbuy/ai";
 import { AppEnv } from "../config/env";
+import { parseSearchIntent, SearchIntent } from "./domain";
 
 const INTENT_SYSTEM_PROMPT = `你是一个购物意图解析器。从用户的消息中提取搜索意图，返回严格 JSON，不要输出任何其他内容。
 

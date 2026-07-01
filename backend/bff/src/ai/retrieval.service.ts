@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { ProductCandidate, SearchIntent } from "@smartbuy/ai";
 import { DatabaseService } from "../database/database.service";
 import { EmbeddingService } from "../products/embedding.service";
 import { ProductRow } from "../products/products.service";
+import { ProductCandidate, SearchIntent } from "./domain";
 
 export interface RetrievedProduct {
   row: ProductRow;

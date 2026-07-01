@@ -54,14 +54,10 @@ export default function ProductCard({ product, variant = "default", onShowSpecs 
       await Taro.showToast({ title: "暂时无法打开商品详情", icon: "none" });
       return;
     }
-    try {
-      await Taro.navigateToMiniProgram({
-        appId: product.miniProgramAppId,
-        path: getTargetPath(product),
-      });
-    } catch {
-      await Taro.showToast({ title: "暂时无法打开商品详情，请稍后再试", icon: "none" });
-    }
+    await Taro.navigateToMiniProgram({
+      appId: product.miniProgramAppId,
+      path: getTargetPath(product),
+    });
   };
 
   const previewImage = (index: number) => {
