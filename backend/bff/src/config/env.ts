@@ -9,6 +9,7 @@ export interface AppEnv {
   aiChatApiUrl: string;
   aiChatApiKey: string;
   aiChatModel: string;
+  aiChatThinkingEnabled?: boolean;
   langfuseSecretKey: string;
   langfusePublicKey: string;
   langfuseBaseUrl: string;
@@ -28,6 +29,11 @@ function positiveNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function optionalBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  return value.trim().toLowerCase() === "true";
+}
+
 export function loadEnv(): AppEnv {
   return {
     port: Number(process.env.PORT || 3000),
@@ -43,6 +49,7 @@ export function loadEnv(): AppEnv {
     aiChatApiUrl: process.env.AI_CHAT_API_URL || "",
     aiChatApiKey: process.env.AI_CHAT_API_KEY || "",
     aiChatModel: process.env.AI_CHAT_MODEL || "",
+    aiChatThinkingEnabled: optionalBoolean(process.env.AI_CHAT_THINKING_ENABLED),
     langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY || "",
     langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY || "",
     langfuseBaseUrl: process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com",
