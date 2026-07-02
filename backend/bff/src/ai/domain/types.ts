@@ -1,22 +1,14 @@
-export interface SearchIntent {
-  queryText: string;
-  keywords: string[];
-  priceMin: number | null;
-  priceMax: number | null;
-  needRecommendation: boolean;
-}
-
 export interface ProductCandidate {
   id: string;
   title: string;
-  category: string;
+  category: string | null;
   description: string | null;
   displayPrice: number;
   minPrice: number;
   maxPrice: number;
   tags: unknown[];
   options: unknown[];
-  aiText: string;
+  optionsText: string;
   score: number;
 }
 

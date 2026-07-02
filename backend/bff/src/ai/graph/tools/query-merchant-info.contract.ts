@@ -16,7 +16,7 @@ export type QueryMerchantInfoInput = z.infer<typeof QueryMerchantInfoInputSchema
 export type MerchantInfoStatus = "success" | "empty" | "unsupported" | "error";
 
 export interface MerchantInfoItem {
-  field: "phone";
+  field: "phone" | "address";
   label: string;
   value: string;
 }
@@ -41,7 +41,7 @@ export const queryMerchantInfoToolDefinition = {
   function: {
     name: QUERY_MERCHANT_INFO_TOOL_NAME,
     description:
-      "查询当前商家的基础信息。商家电话、地址、营业时间等咨询使用这个工具；目前只接入商家电话，地址和营业时间未接入时会返回 unsupported。",
+      "查询当前商家的基础信息。商家电话、地址、营业时间等咨询使用这个工具；营业时间未接入时会返回 unsupported。",
     parameters: {
       type: "object",
       properties: {

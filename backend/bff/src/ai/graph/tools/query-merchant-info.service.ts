@@ -24,9 +24,10 @@ export class QueryMerchantInfoService implements QueryMerchantInfoExecutor {
     const requested = detectRequestedFields(query);
     const infos: QueryMerchantInfoResult["infos"] = [];
     const unsupported: string[] = [];
+    const phone = input.merchant.phone?.trim();
+    const address = input.merchant.address?.trim();
 
     if (requested.phone || requested.generic) {
-      const phone = input.merchant.phone?.trim();
       if (phone) {
         infos.push({ field: "phone", label: "联系电话", value: phone });
       } else {
@@ -38,7 +39,13 @@ export class QueryMerchantInfoService implements QueryMerchantInfoExecutor {
       }
     }
 
-    if (requested.address) unsupported.push("地址");
+    if (requested.address) {
+      if (address) {
+        infos.push({ field: "address", label: "门店地址", value: address });
+      } else {
+        unsupported.push("地址");
+      }
+    }
     if (requested.businessHours) unsupported.push("营业时间");
 
     if (infos.length > 0) {
@@ -46,7 +53,7 @@ export class QueryMerchantInfoService implements QueryMerchantInfoExecutor {
         status: "success",
         infos,
         reason: unsupported.length > 0
-          ? `当前仅提供商家电话，暂未提供商家${unsupported.join("、")}信息`
+          ? `当前暂未提供商家${unsupported.join("、")}信息`
           : undefined,
       };
     }
@@ -54,8 +61,10 @@ export class QueryMerchantInfoService implements QueryMerchantInfoExecutor {
     if (unsupported.length > 0) {
       return {
         status: "unsupported",
-        infos: [],
-        reason: `当前暂未提供商家${unsupported.join("、")}信息`,
+        infos: phone ? [{ field: "phone", label: "联系电话", value: phone }] : [],
+        reason: phone
+          ? `这边还没有商家的${unsupported.join("、")}信息，可以打电话问问商家：${phone}`
+          : `这边还没有商家的${unsupported.join("、")}信息`,
       };
     }
 

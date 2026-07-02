@@ -75,7 +75,7 @@ export default function HomePage() {
   };
 
   useShareAppMessage(() => ({
-    title: "智能导购",
+    title: "商小伴",
     path: "/pages/index/index",
   }));
 
@@ -144,7 +144,7 @@ export default function HomePage() {
         <CustomNav transparent />
         <View className="home-hero__content">
           <View className="home-hero__copy">
-            <Text className="home-hero__title">智能导购</Text>
+            <Text className="home-hero__title">商小伴</Text>
             <Text className="home-hero__subtitle">随时咨询，轻松选购</Text>
           </View>
           <View className="home-hero__visual">

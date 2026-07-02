@@ -21,7 +21,7 @@ export default defineConfig<"webpack5">((merge) => {
   const devApiBase = `http://${process.env.TARO_APP_API_HOST || getLocalNetworkIp()}:${process.env.TARO_APP_API_PORT || "3000"}`;
   const apiBase = process.env.TARO_APP_API_BASE || process.env.TARO_APP_BASE_URL || devApiBase;
   const baseConfig: UserConfigExport<"webpack5"> = {
-    projectName: "smartbuy-miniprogram",
+    projectName: "商小伴",
     date: "2026-06-29",
     designWidth: 750,
     deviceRatio: {

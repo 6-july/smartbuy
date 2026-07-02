@@ -9,15 +9,11 @@ export interface AppEnv {
   aiChatApiUrl: string;
   aiChatApiKey: string;
   aiChatModel: string;
-  embeddingApiUrl: string;
-  embeddingApiKey: string;
-  embeddingModel: string;
   langfuseSecretKey: string;
   langfusePublicKey: string;
   langfuseBaseUrl: string;
   langfuseExportMode: "batched" | "immediate";
   youzanProductPathTemplate: string;
-  conversationReuseWindowMinutes: number;
   messageProcessingTimeoutSeconds: number;
 }
 
@@ -46,9 +42,6 @@ export function loadEnv(): AppEnv {
     aiChatApiUrl: process.env.AI_CHAT_API_URL || "",
     aiChatApiKey: process.env.AI_CHAT_API_KEY || "",
     aiChatModel: process.env.AI_CHAT_MODEL || "",
-    embeddingApiUrl: process.env.EMBEDDING_API_URL || "",
-    embeddingApiKey: process.env.EMBEDDING_API_KEY || "",
-    embeddingModel: process.env.EMBEDDING_MODEL || "",
     langfuseSecretKey: process.env.LANGFUSE_SECRET_KEY || "",
     langfusePublicKey: process.env.LANGFUSE_PUBLIC_KEY || "",
     langfuseBaseUrl: process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com",
@@ -57,10 +50,6 @@ export function loadEnv(): AppEnv {
     youzanProductPathTemplate:
       process.env.PRODUCT_PATH_TEMPLATE_YOUZAN ||
       "/pages/goods/detail/index?alias={alias}",
-    conversationReuseWindowMinutes: positiveNumber(
-      process.env.CONVERSATION_REUSE_WINDOW_MINUTES,
-      30,
-    ),
     messageProcessingTimeoutSeconds: positiveNumber(
       process.env.MESSAGE_PROCESSING_TIMEOUT_SECONDS,
       120,

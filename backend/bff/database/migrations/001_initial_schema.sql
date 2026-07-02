@@ -2,7 +2,6 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,6 +27,9 @@ CREATE TABLE IF NOT EXISTS merchants (
     scene_code varchar(32) NOT NULL,
     recommend_questions jsonb NOT NULL DEFAULT '[]'::jsonb
         CHECK (jsonb_typeof(recommend_questions) = 'array'),
+    phone varchar(32),
+    address text,
+    industry varchar(64) NOT NULL DEFAULT '综合零售',
     status varchar(20) NOT NULL DEFAULT 'enabled'
         CHECK (status IN ('enabled', 'disabled', 'deleted')),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -42,7 +44,7 @@ CREATE TABLE IF NOT EXISTS products (
     source_shop_id varchar(128),
     source_product_id varchar(128) NOT NULL CHECK (btrim(source_product_id) <> ''),
     alias varchar(128),
-    category varchar(128) NOT NULL CHECK (btrim(category) <> ''),
+    category varchar(128) CHECK (category IS NULL OR btrim(category) <> ''),
     title text NOT NULL CHECK (btrim(title) <> ''),
     description text,
     display_price numeric(12, 2) NOT NULL CHECK (display_price >= 0),
@@ -56,14 +58,13 @@ CREATE TABLE IF NOT EXISTS products (
         CHECK (jsonb_typeof(options) = 'array'),
     tags jsonb NOT NULL DEFAULT '[]'::jsonb
         CHECK (jsonb_typeof(tags) = 'array'),
-    ai_text text NOT NULL CHECK (btrim(ai_text) <> ''),
+    options_text text NOT NULL CHECK (btrim(options_text) <> ''),
     sale_status varchar(20) NOT NULL DEFAULT 'on_sale'
-        CHECK (sale_status IN ('on_sale', 'off_sale', 'deleted')),
-    embedding vector,
+        CHECK (sale_status IN ('on_sale', 'off_sale')),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_products_merchant_source
-        UNIQUE (merchant_id, source, source_product_id)
+    CONSTRAINT uq_products_merchant_source_product_id
+        UNIQUE (merchant_id, source_product_id)
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -168,10 +169,7 @@ CREATE TRIGGER trg_conversations_set_updated_at
 BEFORE UPDATE ON conversations
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-COMMENT ON COLUMN products.embedding IS
-    'Embedding generated from ai_text. NULL means not generated or generation failed.';
-
 COMMENT ON TABLE products IS
-    'Merchant-isolated product knowledge base. MVP intentionally does not store inventory or product jump paths.';
+    'Merchant-isolated product catalog. MVP intentionally does not store inventory or product jump paths.';
 
 COMMIT;

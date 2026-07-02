@@ -40,6 +40,12 @@ export class CreateMerchantDto {
   @MaxLength(32)
   phone?: string;
 
+  @ApiPropertyOptional({ description: "商家门店地址" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
   @ApiPropertyOptional({ description: "行业（如 蛋糕烘焙、鲜花、水果）", default: "综合零售" })
   @IsOptional()
   @IsString()

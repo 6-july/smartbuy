@@ -12,9 +12,9 @@ export class ProductQueryDto {
   @IsString()
   keyword?: string;
 
-  @ApiPropertyOptional({ enum: ["on_sale", "off_sale", "deleted"] })
+  @ApiPropertyOptional({ enum: ["on_sale", "off_sale"] })
   @IsOptional()
-  @IsIn(["on_sale", "off_sale", "deleted"])
+  @IsIn(["on_sale", "off_sale"])
   saleStatus?: string;
 
   @ApiPropertyOptional({ default: 1 })
@@ -32,7 +32,7 @@ export class ProductQueryDto {
 }
 
 export class UpdateProductStatusDto {
-  @ApiProperty({ enum: ["on_sale", "off_sale", "deleted"] })
-  @IsIn(["on_sale", "off_sale", "deleted"])
-  saleStatus!: "on_sale" | "off_sale" | "deleted";
+  @ApiProperty({ enum: ["on_sale", "off_sale"] })
+  @IsIn(["on_sale", "off_sale"])
+  saleStatus!: "on_sale" | "off_sale";
 }

@@ -5,8 +5,8 @@ import { DatabaseService } from "../database/database.service";
 import { MerchantsService } from "../merchants/merchants.service";
 import { ImportProductsDto, ProductImportItemDto } from "./dto/import-products.dto";
 import { ProductQueryDto } from "./dto/product-query.dto";
-import { EmbeddingService } from "./embedding.service";
 import { ProductLinkService } from "./product-link.service";
+import { parseProductImportCsv } from "./products-csv";
 
 export interface ProductRow {
   id: string;
@@ -15,7 +15,7 @@ export interface ProductRow {
   source_shop_id: string | null;
   source_product_id: string;
   alias: string | null;
-  category: string;
+  category: string | null;
   title: string;
   description: string | null;
   display_price: string;
@@ -26,18 +26,14 @@ export interface ProductRow {
   is_recommended: boolean;
   options: unknown[];
   tags: unknown[];
-  ai_text: string;
+  options_text: string;
   sale_status: string;
   created_at: Date;
   updated_at: Date;
 }
 
-interface EmbedTarget {
-  id: string;
-  aiText: string;
-}
-
 const FIELD_MAP: Array<[keyof ProductImportItemDto, keyof ProductRow, string]> = [
+  ["source", "source", "source"],
   ["sourceShopId", "source_shop_id", "source_shop_id"],
   ["alias", "alias", "alias"],
   ["category", "category", "category"],
@@ -51,7 +47,7 @@ const FIELD_MAP: Array<[keyof ProductImportItemDto, keyof ProductRow, string]> =
   ["isRecommended", "is_recommended", "is_recommended"],
   ["options", "options", "options"],
   ["tags", "tags", "tags"],
-  ["aiText", "ai_text", "ai_text"],
+  ["optionsText", "options_text", "options_text"],
 ];
 
 @Injectable()
@@ -59,7 +55,6 @@ export class ProductsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly merchants: MerchantsService,
-    private readonly embedding: EmbeddingService,
     private readonly links: ProductLinkService,
   ) {}
 
@@ -75,100 +70,76 @@ export class ProductsService {
 
     const keys = new Set<string>();
     for (const item of dto.products) {
-      const key = `${item.source}\u0000${item.sourceProductId}`;
-      if (keys.has(key)) {
+      if (keys.has(item.sourceProductId)) {
         throw new AppException(
           "PRODUCT_IMPORT_INVALID",
-          `商品重复: ${item.source}/${item.sourceProductId}`,
+          `商品重复: ${item.sourceProductId}`,
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
       }
-      keys.add(key);
+      keys.add(item.sourceProductId);
     }
 
     const result = await this.database.transaction(async (client) => {
       let created = 0;
       let updated = 0;
       let unchanged = 0;
-      const embedTargets: EmbedTarget[] = [];
+      let deactivated = 0;
 
       for (const item of dto.products) {
         const currentResult = await client.query<ProductRow>(
           `SELECT * FROM products
-           WHERE merchant_id = $1 AND source = $2 AND source_product_id = $3
+           WHERE merchant_id = $1 AND source_product_id = $2
            FOR UPDATE`,
-          [dto.merchantId, item.source, item.sourceProductId],
+          [dto.merchantId, item.sourceProductId],
         );
         const current = currentResult.rows[0];
         if (!current) {
-          const inserted = await this.insertProduct(client, dto.merchantId, item);
+          await this.insertProduct(client, dto.merchantId, item);
           created += 1;
-          embedTargets.push({ id: inserted.id, aiText: inserted.ai_text });
           continue;
         }
 
         const changes = this.getChanges(current, item);
+        if (current.sale_status !== "on_sale") {
+          changes.push(["sale_status", "on_sale", false]);
+        }
         if (changes.length === 0) {
           unchanged += 1;
           continue;
         }
-        const aiTextChanged = changes.some(([column]) => column === "ai_text");
-        await this.updateProduct(client, current.id, changes, aiTextChanged);
+        await this.updateProduct(client, current.id, changes);
         updated += 1;
-        if (aiTextChanged) embedTargets.push({ id: current.id, aiText: item.aiText });
       }
 
       if (dto.deactivateMissing && dto.products.length > 0) {
-        await client.query(
+        const deactivateResult = await client.query(
           `UPDATE products
            SET sale_status = 'off_sale'
            WHERE merchant_id = $1
-             AND (source, source_product_id) NOT IN (
-               SELECT * FROM unnest($2::text[], $3::text[])
-             )`,
+             AND source_product_id <> ALL($2::text[])
+             AND sale_status <> 'off_sale'`,
           [
             dto.merchantId,
-            dto.products.map((item) => item.source),
             dto.products.map((item) => item.sourceProductId),
           ],
         );
+        deactivated = deactivateResult.rowCount || 0;
       }
-      return { created, updated, unchanged, embedTargets };
+      return { created, updated, unchanged, deactivated };
     });
-
-    let embeddingReady = 0;
-    let embeddingFailed = 0;
-    let embeddingSkipped = 0;
-    for (const target of result.embedTargets) {
-      if (!this.embedding.isConfigured()) {
-        embeddingSkipped += 1;
-        continue;
-      }
-      try {
-        const vector = await this.embedding.embed(target.aiText);
-        if (!vector) {
-          embeddingSkipped += 1;
-          continue;
-        }
-        await this.database.query(
-          `UPDATE products SET embedding = $1::vector
-           WHERE id = $2 AND ai_text = $3`,
-          [`[${vector.join(",")}]`, target.id, target.aiText],
-        );
-        embeddingReady += 1;
-      } catch {
-        embeddingFailed += 1;
-      }
-    }
 
     return {
       created: result.created,
       updated: result.updated,
       unchanged: result.unchanged,
-      embeddingReady,
-      embeddingFailed,
-      embeddingSkipped,
+      deactivated: result.deactivated,
     };
+  }
+
+  async importProductsCsv(merchantId: string, csv: Buffer | string) {
+    const products = parseProductImportCsv(csv);
+    return this.importProducts({ merchantId, products, deactivateMissing: true });
   }
 
   async list(query: ProductQueryDto) {
@@ -241,7 +212,7 @@ export class ProductsService {
       isRecommended: row.is_recommended,
       options: row.options,
       tags: row.tags,
-      aiText: row.ai_text,
+      optionsText: row.options_text,
       saleStatus: row.sale_status,
       ...jump,
       createdAt: row.created_at,
@@ -258,7 +229,7 @@ export class ProductsService {
       `INSERT INTO products (
          merchant_id, source, source_shop_id, source_product_id, alias,
          category, title, description, display_price, min_price, max_price,
-         images, sales, is_recommended, options, tags, ai_text
+         images, sales, is_recommended, options, tags, options_text
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
          $12::jsonb, $13, $14, $15::jsonb, $16::jsonb, $17
@@ -269,7 +240,7 @@ export class ProductsService {
         item.sourceShopId || null,
         item.sourceProductId,
         item.alias || null,
-        item.category,
+        item.category?.trim() || null,
         item.title,
         item.description || null,
         item.displayPrice,
@@ -280,7 +251,7 @@ export class ProductsService {
         item.isRecommended,
         JSON.stringify(item.options),
         JSON.stringify(item.tags),
-        item.aiText,
+        item.optionsText,
       ],
     );
     return result.rows[0];
@@ -292,7 +263,7 @@ export class ProductsService {
   ): Array<[string, unknown, boolean]> {
     const changes: Array<[string, unknown, boolean]> = [];
     for (const [inputKey, rowKey, column] of FIELD_MAP) {
-      const input = item[inputKey] ?? null;
+      const input = inputKey === "category" ? item.category?.trim() || null : item[inputKey] ?? null;
       const stored = current[rowKey] ?? null;
       const isJson = ["images", "options", "tags"].includes(column);
       const isNumber = ["display_price", "min_price", "max_price", "sales"].includes(column);
@@ -310,14 +281,12 @@ export class ProductsService {
     client: PoolClient,
     id: string,
     changes: Array<[string, unknown, boolean]>,
-    clearEmbedding: boolean,
   ): Promise<void> {
     const values: unknown[] = [];
     const sets = changes.map(([column, value, isJson]) => {
       values.push(value);
       return `${column} = $${values.length}${isJson ? "::jsonb" : ""}`;
     });
-    if (clearEmbedding) sets.push("embedding = NULL");
     values.push(id);
     await client.query(
       `UPDATE products SET ${sets.join(", ")} WHERE id = $${values.length}`,

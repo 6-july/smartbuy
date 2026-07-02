@@ -15,7 +15,14 @@ export class AiOrchestratorService {
   ) {}
 
   async guide(input: {
-    merchant: { id: string; name: string; description: string | null; phone?: string | null; industry?: string };
+    merchant: {
+      id: string;
+      name: string;
+      description: string | null;
+      phone?: string | null;
+      address?: string | null;
+      industry?: string;
+    };
     question: string;
     history: ChatMessage[];
     recentProducts?: RecentProductReference[];

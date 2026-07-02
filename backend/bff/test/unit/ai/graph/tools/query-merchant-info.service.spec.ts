@@ -17,18 +17,42 @@ describe("QueryMerchantInfoService", () => {
     });
   });
 
-  it("returns unsupported for address before address data is connected", async () => {
+  it("returns the configured merchant address", async () => {
     const service = new QueryMerchantInfoService();
 
     const result = await service.execute({
-      merchant: { id: "merchant-id", name: "测试店铺", phone: "18600000000" },
+      merchant: {
+        id: "merchant-id",
+        name: "测试店铺",
+        phone: "18600000000",
+        address: "河南省郑州市管城回族区吾安烘焙(兴达国贸店)",
+      },
       query: "商家地址在哪里？",
     });
 
     expect(result).toEqual({
+      status: "success",
+      infos: [{
+        field: "address",
+        label: "门店地址",
+        value: "河南省郑州市管城回族区吾安烘焙(兴达国贸店)",
+      }],
+      reason: undefined,
+    });
+  });
+
+  it("returns unsupported for business hours before data is connected", async () => {
+    const service = new QueryMerchantInfoService();
+
+    const result = await service.execute({
+      merchant: { id: "merchant-id", name: "测试店铺", phone: "18600000000" },
+      query: "商家几点营业？",
+    });
+
+    expect(result).toEqual({
       status: "unsupported",
-      infos: [],
-      reason: "当前暂未提供商家地址信息",
+      infos: [{ field: "phone", label: "联系电话", value: "18600000000" }],
+      reason: "这边还没有商家的营业时间信息，可以打电话问问商家：18600000000",
     });
   });
 

@@ -65,7 +65,7 @@ export default function ChatPage() {
   useShareAppMessage(() => {
     const merchant = guide?.merchant;
     return {
-      title: merchant ? `${merchant.name} - 智能导购` : "智能导购",
+      title: merchant ? `${merchant.name} - 商小伴` : "商小伴",
       path: merchant?.id
         ? `/pages/chat/index?merchantId=${encodeURIComponent(merchant.id)}`
         : "/pages/index/index",
@@ -321,7 +321,7 @@ export default function ChatPage() {
   if (error || !guide) {
     return (
       <View className="page-shell chat-error">
-        <CustomNav title="智能导购" showBack />
+        <CustomNav title="商小伴" showBack />
         <View className="chat-error__body">
           <Text className="chat-error__icon">!</Text>
           <Text className="chat-error__title">{error || "未找到对应商家"}</Text>

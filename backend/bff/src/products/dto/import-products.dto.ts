@@ -34,10 +34,10 @@ export class ProductImportItemDto {
   @IsString()
   alias?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  category!: string;
+  category?: string;
 
   @ApiProperty()
   @IsString()
@@ -89,7 +89,7 @@ export class ProductImportItemDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  aiText!: string;
+  optionsText!: string;
 }
 
 export class ImportProductsDto {
@@ -107,4 +107,10 @@ export class ImportProductsDto {
   @IsOptional()
   @IsBoolean()
   deactivateMissing?: boolean;
+}
+
+export class ImportProductsCsvDto {
+  @ApiProperty()
+  @IsUUID()
+  merchantId!: string;
 }

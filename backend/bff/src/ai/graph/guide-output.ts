@@ -1,10 +1,12 @@
 import { AIMessage, BaseMessage } from "@langchain/core/messages";
+import { normalizeGuideReply } from "./guide-reply-format";
 
 export type GuideAnswerType =
   | "recommendation"
   | "product_detail"
   | "clarification"
   | "merchant_info"
+  | "product_overview"
   | "no_match"
   | "unsupported_fact"
   | "chitchat";
@@ -25,7 +27,7 @@ export function parseGuideFinalOutput(message: BaseMessage | undefined): GuideFi
   if (!json) {
     if (!content) throw new Error("Guide output is empty");
     return {
-      reply: content,
+      reply: normalizeGuideReply(content),
       productIds: [],
       answerType: "chitchat",
     };
@@ -34,7 +36,7 @@ export function parseGuideFinalOutput(message: BaseMessage | undefined): GuideFi
   if (!parsed.reply?.trim()) throw new Error("Guide output is missing reply");
 
   return {
-    reply: parsed.reply.trim(),
+    reply: normalizeGuideReply(parsed.reply),
     productIds: Array.isArray(parsed.productIds)
       ? [...new Set(parsed.productIds.filter((id): id is string => typeof id === "string"))]
       : [],
@@ -66,6 +68,7 @@ function isGuideAnswerType(value: unknown): value is GuideAnswerType {
     value === "product_detail" ||
     value === "clarification" ||
     value === "merchant_info" ||
+    value === "product_overview" ||
     value === "no_match" ||
     value === "unsupported_fact" ||
     value === "chitchat"

@@ -78,6 +78,11 @@ function openEmbeddedMiniProgram(appId: string, path: string) {
   });
 }
 
+function isOpenEmbeddedMiniProgramCancel(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /openEmbeddedMiniProgram:fail cancel|cancel/i.test(message);
+}
+
 export default function ProductCard({ product, variant = "default", onShowSpecs }: ProductCardProps) {
   const [swiperIndex, setSwiperIndex] = useState(0);
   const compact = variant === "compact";
@@ -102,6 +107,7 @@ export default function ProductCard({ product, variant = "default", onShowSpecs 
     try {
       await openEmbeddedMiniProgram(product.miniProgramAppId, path);
     } catch (error) {
+      if (isOpenEmbeddedMiniProgramCancel(error)) return;
       console.warn("[ProductCard] openEmbeddedMiniProgram failed", {
         appId: product.miniProgramAppId,
         path,

@@ -1,8 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { AppException } from "../common/app-exception";
-import { AppEnv } from "../config/env";
 import { DatabaseService } from "../database/database.service";
 import { CreateMerchantDto } from "./dto/create-merchant.dto";
 
@@ -16,6 +14,7 @@ export interface MerchantRow {
   scene_code: string;
   recommend_questions: string[];
   phone: string | null;
+  address: string | null;
   industry: string;
   status: string;
 }
@@ -24,7 +23,6 @@ export interface MerchantRow {
 export class MerchantsService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly config: ConfigService<AppEnv, true>,
   ) {}
 
   async create(dto: CreateMerchantDto) {
@@ -32,8 +30,8 @@ export class MerchantsService {
     const result = await this.database.query<MerchantRow>(
       `INSERT INTO merchants (
          name, logo, description, banner_image, mini_program_app_id,
-         scene_code, recommend_questions, phone, industry
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+         scene_code, recommend_questions, phone, address, industry
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
        RETURNING *`,
       [
         dto.name,
@@ -44,6 +42,7 @@ export class MerchantsService {
         sceneCode,
         JSON.stringify(dto.recommendQuestions || []),
         dto.phone || null,
+        dto.address || null,
         dto.industry || "综合零售",
       ],
     );
@@ -55,13 +54,13 @@ export class MerchantsService {
     if (!userId) {
       return { merchantId: merchant.id, conversationId: null, needLogin: true };
     }
-    const conversationId = await this.getOrCreateConversation(userId, merchant.id);
+    const conversationId = await this.createConversation(userId, merchant.id);
     return { merchantId: merchant.id, conversationId, needLogin: false };
   }
 
   async guideInfo(merchantId: string, userId: string) {
     const merchant = await this.findEnabledById(merchantId);
-    const conversationId = await this.getOrCreateConversation(userId, merchant.id);
+    const conversationId = await this.createConversation(userId, merchant.id);
     return {
       merchant: this.mapMerchant(merchant),
       recommendQuestions: merchant.recommend_questions,
@@ -107,21 +106,7 @@ export class MerchantsService {
     return merchant;
   }
 
-  private async getOrCreateConversation(userId: string, merchantId: string): Promise<string> {
-    const reuseWindowMinutes = this.config.get("conversationReuseWindowMinutes", { infer: true });
-    const existing = await this.database.query<{ id: string }>(
-      `SELECT id
-       FROM conversations
-       WHERE user_id = $1
-         AND merchant_id = $2
-         AND status = 'active'
-         AND COALESCE(last_message_time, created_at) >= now() - ($3::int * INTERVAL '1 minute')
-       ORDER BY COALESCE(last_message_time, created_at) DESC, created_at DESC
-       LIMIT 1`,
-      [userId, merchantId, reuseWindowMinutes],
-    );
-    if (existing.rows[0]) return existing.rows[0].id;
-
+  private async createConversation(userId: string, merchantId: string): Promise<string> {
     const created = await this.database.query<{ id: string }>(
       `INSERT INTO conversations (user_id, merchant_id) VALUES ($1, $2) RETURNING id`,
       [userId, merchantId],
@@ -139,6 +124,7 @@ export class MerchantsService {
       miniProgramAppId: row.mini_program_app_id,
       sceneCode: row.scene_code,
       phone: row.phone,
+      address: row.address,
       industry: row.industry,
       status: row.status,
     };

@@ -60,7 +60,7 @@
             "description": ""
           }
         },
-        "summary": "解析商家太阳码并按登录态返回会话",
+        "summary": "解析商家太阳码并按登录态创建新会话",
         "tags": [
           "商家"
         ]
@@ -89,7 +89,7 @@
             "bearer": []
           }
         ],
-        "summary": "获取商家导购页信息并复用固定会话",
+        "summary": "获取商家导购页信息并创建新会话",
         "tags": [
           "商家"
         ]
@@ -195,6 +195,54 @@
         ]
       }
     },
+    "/api/admin/products/import-csv": {
+      "post": {
+        "operationId": "importProductsCsv",
+        "parameters": [
+          {
+            "name": "x-admin-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "merchantId",
+                  "file"
+                ],
+                "properties": {
+                  "merchantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "导入吾安有赞商品 CSV 并同步上下架",
+        "tags": [
+          "内部管理-商品"
+        ]
+      }
+    },
     "/api/admin/products": {
       "get": {
         "operationId": "list",
@@ -231,8 +279,7 @@
               "type": "string",
               "enum": [
                 "on_sale",
-                "off_sale",
-                "deleted"
+                "off_sale"
               ]
             }
           },
@@ -629,6 +676,19 @@
             "items": {
               "type": "string"
             }
+          },
+          "phone": {
+            "type": "string",
+            "description": "客服电话"
+          },
+          "address": {
+            "type": "string",
+            "description": "商家门店地址"
+          },
+          "industry": {
+            "type": "string",
+            "description": "行业（如 蛋糕烘焙、鲜花、水果）",
+            "default": "综合零售"
           }
         },
         "required": [
@@ -694,14 +754,13 @@
               "type": "string"
             }
           },
-          "aiText": {
+          "optionsText": {
             "type": "string"
           }
         },
         "required": [
           "source",
           "sourceProductId",
-          "category",
           "title",
           "displayPrice",
           "minPrice",
@@ -711,7 +770,7 @@
           "isRecommended",
           "options",
           "tags",
-          "aiText"
+          "optionsText"
         ]
       },
       "ImportProductsDto": {
@@ -747,8 +806,7 @@
             "type": "string",
             "enum": [
               "on_sale",
-              "off_sale",
-              "deleted"
+              "off_sale"
             ]
           }
         },

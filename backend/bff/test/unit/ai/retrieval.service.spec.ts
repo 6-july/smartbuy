@@ -2,115 +2,70 @@ import { describe, expect, it, vi } from "vitest";
 import { RetrievalService } from "../../../src/ai/retrieval.service";
 
 describe("RetrievalService", () => {
-  it("boosts a product referenced by the previous response", async () => {
-    const preferredId = "7df2309a-918c-4b23-bc79-e03fb6801368";
+  it("loads all saleable merchant products without vector search", async () => {
     const query = vi.fn().mockResolvedValue({
-      rows: [{
-        id: preferredId,
-        title: "伯爵红茶奶油蛋糕",
-        category: "蛋糕",
-        description: null,
-        display_price: "128",
-        min_price: "128",
-        max_price: "258",
-        tags: [],
-        options: [],
-        ai_text: "伯爵红茶奶油蛋糕",
-        retrieval_score: "1",
-      }],
-    });
-    const service = new RetrievalService(
-      { query } as never,
-      { embed: vi.fn().mockResolvedValue(null) } as never,
-    );
-
-    const result = await service.search(
-      "merchant-id",
-      {
-        queryText: "伯爵红茶奶油蛋糕有什么尺寸",
-        keywords: ["伯爵红茶奶油蛋糕", "尺寸"],
-        priceMin: null,
-        priceMax: null,
-        needRecommendation: false,
-      },
-      [preferredId],
-    );
-
-    expect(result[0].row.id).toBe(preferredId);
-    expect(query.mock.calls[0][0]).toContain("id = ANY");
-    expect(query.mock.calls[0][1]).toContainEqual([preferredId]);
-  });
-
-  it("sorts cheapest-product questions by minimum price", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
-    const service = new RetrievalService(
-      { query } as never,
-      { embed: vi.fn().mockResolvedValue(null) } as never,
-    );
-
-    await service.search("merchant-id", {
-      queryText: "店里最便宜的蛋糕是哪款",
-      keywords: ["蛋糕"],
-      priceMin: null,
-      priceMax: null,
-      needRecommendation: false,
-    });
-
-    expect(query.mock.calls[0][0]).toContain("ORDER BY min_price ASC");
-  });
-
-  it("scores product detail text when matching flavor keywords", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
-    const service = new RetrievalService(
-      { query } as never,
-      { embed: vi.fn().mockResolvedValue(null) } as never,
-    );
-
-    await service.search("merchant-id", {
-      queryText: "我想要巧克力味道的",
-      keywords: ["巧克力"],
-      priceMin: null,
-      priceMax: null,
-      needRecommendation: false,
-    });
-
-    expect(query.mock.calls[0][0]).toContain("ai_text");
-    expect(query.mock.calls[0][0]).toContain("tags::text");
-    expect(query.mock.calls[0][0]).toContain("options::text");
-    expect(query.mock.calls[0][1]).toContain("巧克力");
-  });
-
-  it("keeps zero-score products when a price boundary is present", async () => {
-    const productId = "271a7ad7-8722-45e8-b37c-19370070b438";
-    const query = vi.fn().mockResolvedValue({
-      rows: [{
-        id: productId,
+      rows: [productRow({
+        id: "271a7ad7-8722-45e8-b37c-19370070b438",
         title: "海盐奥利奥",
-        category: "蛋糕",
-        description: null,
-        display_price: "128",
-        min_price: "128",
-        max_price: "258",
-        tags: [],
-        options: [],
-        ai_text: "海盐奥利奥",
-        retrieval_score: "0",
-      }],
+        minPrice: 128,
+        maxPrice: 258,
+      })],
     });
-    const service = new RetrievalService(
-      { query } as never,
-      { embed: vi.fn().mockResolvedValue(null) } as never,
-    );
+    const service = new RetrievalService({ query } as never);
 
-    const result = await service.search("merchant-id", {
-      queryText: "128元以内",
-      keywords: [],
-      priceMin: null,
-      priceMax: 128,
-      needRecommendation: false,
-    });
+    const result = await service.findAllForMerchant("merchant-id");
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.row.id).toBe(productId);
+    expect(result[0]?.candidate.title).toBe("海盐奥利奥");
+    expect(query.mock.calls[0][0]).toContain("WHERE merchant_id = $1");
+    expect(query.mock.calls[0][0]).toContain("ORDER BY is_recommended DESC");
+  });
+
+  it("finds products by ids and preserves requested order", async () => {
+    const firstId = "271a7ad7-8722-45e8-b37c-19370070b438";
+    const secondId = "7df2309a-918c-4b23-bc79-e03fb6801368";
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        productRow({ id: secondId, title: "草莓蛋糕", minPrice: 138, maxPrice: 258 }),
+        productRow({ id: firstId, title: "海盐奥利奥", minPrice: 128, maxPrice: 258 }),
+      ],
+    });
+    const service = new RetrievalService({ query } as never);
+
+    const result = await service.findByIds("merchant-id", [firstId, secondId]);
+
+    expect(result.map((item) => item.row.id)).toEqual([firstId, secondId]);
+    expect(query.mock.calls[0][0]).toContain("id = ANY");
   });
 });
+
+function productRow(input: {
+  id: string;
+  title: string;
+  minPrice: number;
+  maxPrice: number;
+}) {
+  return {
+    id: input.id,
+    merchant_id: "merchant-id",
+    source: "manual",
+    source_shop_id: null,
+    source_product_id: input.id,
+    alias: null,
+    category: "蛋糕",
+    title: input.title,
+    description: null,
+    display_price: String(input.minPrice),
+    min_price: String(input.minPrice),
+    max_price: String(input.maxPrice),
+    images: [],
+    sales: "0",
+    is_recommended: false,
+    options: [],
+    tags: [],
+    options_text: input.title,
+    sale_status: "on_sale",
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+}

@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "dist/",
-  "projectname": "smartbuy-miniprogram",
-  "description": "智能导购用户端小程序",
+  "projectname": "商小伴",
+  "description": "商小伴用户端小程序",
   "appid": "wxef2bbf859748b87e",
   "setting": {
     "urlCheck": false,

@@ -58,7 +58,7 @@ export default function AuthPage() {
 
   return (
     <View className="page-shell auth-page">
-      <CustomNav title="智能导购" showBack />
+      <CustomNav title="商小伴" showBack />
       <View className="auth-main">
         <View className="auth-visual">
           <View className="auth-visual__halo" />
@@ -66,7 +66,7 @@ export default function AuthPage() {
         </View>
 
         <View className="auth-heading">
-          <Text className="auth-heading__title">欢迎使用智能导购</Text>
+          <Text className="auth-heading__title">欢迎使用商小伴</Text>
           <Text className="auth-heading__subtitle">授权后可保存历史会话，快速进入商家导购对话</Text>
         </View>
 

@@ -22,6 +22,7 @@ interface ConversationRow {
   merchant_description: string | null;
   merchant_app_id: string;
   merchant_phone: string | null;
+  merchant_address: string | null;
   merchant_industry: string;
   merchant_status: string;
 }
@@ -71,6 +72,7 @@ export class ConversationsService {
                 m.description AS merchant_description,
                 m.mini_program_app_id AS merchant_app_id,
                 m.phone AS merchant_phone,
+                m.address AS merchant_address,
                 m.industry AS merchant_industry,
                 m.status AS merchant_status
          FROM conversations c
@@ -159,6 +161,7 @@ export class ConversationsService {
           name: conversation.merchant_name,
           description: conversation.merchant_description,
           phone: conversation.merchant_phone,
+          address: conversation.merchant_address,
           industry: conversation.merchant_industry,
         },
         question: dto.content,
@@ -292,6 +295,7 @@ export class ConversationsService {
               m.description AS merchant_description,
               m.mini_program_app_id AS merchant_app_id,
               m.phone AS merchant_phone,
+              m.address AS merchant_address,
               m.industry AS merchant_industry,
               m.status AS merchant_status,
               count(*) OVER() AS total_count
@@ -332,6 +336,7 @@ export class ConversationsService {
               m.description AS merchant_description,
               m.mini_program_app_id AS merchant_app_id,
               m.phone AS merchant_phone,
+              m.address AS merchant_address,
               m.industry AS merchant_industry,
               m.status AS merchant_status
        FROM conversations c
