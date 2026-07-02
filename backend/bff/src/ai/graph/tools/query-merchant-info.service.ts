@@ -8,10 +8,6 @@ import {
 @Injectable()
 export class QueryMerchantInfoService implements QueryMerchantInfoExecutor {
   async execute(input: QueryMerchantInfoExecutionInput): Promise<QueryMerchantInfoResult> {
-    return this.executeInternal(input);
-  }
-
-  private executeInternal(input: QueryMerchantInfoExecutionInput): QueryMerchantInfoResult {
     const query = input.query.trim();
     if (!query) {
       return {

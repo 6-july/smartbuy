@@ -29,6 +29,7 @@ import {
 import { createLangfuseCallbacks } from "../../observability/langfuse";
 import { buildGuideSystemPrompt } from "./guide-prompt";
 import { GuideFinalOutput, parseGuideFinalOutput } from "./guide-output";
+import { normalizeProductText, productTitleMatchIndex } from "./product-text";
 import {
   CurrentProductContext,
   GuideStateAnnotation,
@@ -457,7 +458,13 @@ function isProductSearchQuestion(question: string): boolean {
   if (/(电话|联系方式|地址|位置|营业|几点开门|几点关门|商家|店铺|天气|新闻|百科|计算)/.test(normalized)) {
     return false;
   }
+  if (isGiftOrRecipientProductNeed(normalized)) return true;
   return /(推荐|帮我.*(?:选|找|看)|看看|想要|想买|来一?[个款份]|哪个好|有什么|有没有|蛋糕|甜品|商品|口味|味道|尺寸|预算|价格|多少钱|贵|便宜|实惠|划算|超预算|巧克力|草莓|芒果|榴莲|抹茶|奶油|水果|奥利奥|可可|黑巧|生巧)/.test(normalized);
+}
+
+function isGiftOrRecipientProductNeed(question: string): boolean {
+  if (/(配送|送货|外送|送到|能送|可以送|邮寄|快递)/.test(question)) return false;
+  return /(送(?:长辈|老人|父母|爸妈|妈妈|爸爸|女友|男友|朋友|同事|客户|孩子|宝宝|小孩|女生|男生|女士|男士)|想送|送礼|礼物|生日|纪念日|长辈|老人|父母|爸妈|妈妈|爸爸|女友|男友|孩子|宝宝|儿童|男士|女士)/.test(question);
 }
 
 function isProductContinuationConfirmation(
@@ -571,46 +578,43 @@ function productIdsMentionedInReply(
   allowed: Set<string>,
 ): string[] {
   const normalizedReply = normalizeProductText(reply);
-  const titleIds: string[] = [];
+  const titleMatches: Array<{ id: string; index: number }> = [];
   products.items.forEach((product) => {
     if (!allowed.has(product.id)) return;
-    const aliases = productTitleAliases(product.title);
-    const mentionedByTitle = aliases.some((alias) =>
-      alias.length >= 2 && normalizedReply.includes(alias)
-    );
-    if (mentionedByTitle && !titleIds.includes(product.id)) {
-      titleIds.push(product.id);
+    const index = productTitleMatchIndex(normalizedReply, product.title);
+    if (
+      index < Number.POSITIVE_INFINITY &&
+      !titleMatches.some((item) => item.id === product.id)
+    ) {
+      titleMatches.push({ id: product.id, index });
     }
   });
-  if (titleIds.length > 0) return titleIds;
+  if (titleMatches.length > 0) {
+    return titleMatches
+      .sort((left, right) => left.index - right.index)
+      .map((item) => item.id);
+  }
 
-  const ordinalIds: string[] = [];
+  const ordinalMatches: Array<{ id: string; index: number }> = [];
   products.items.forEach((product, index) => {
-    if (!allowed.has(product.id) || !replyMentionsOrdinal(reply, index + 1)) return;
-    if (!ordinalIds.includes(product.id)) ordinalIds.push(product.id);
+    if (!allowed.has(product.id)) return;
+    const ordinalIndex = replyOrdinalIndex(reply, index + 1);
+    if (
+      ordinalIndex >= 0 &&
+      !ordinalMatches.some((item) => item.id === product.id)
+    ) {
+      ordinalMatches.push({ id: product.id, index: ordinalIndex });
+    }
   });
-  return ordinalIds;
+  return ordinalMatches
+    .sort((left, right) => left.index - right.index)
+    .map((item) => item.id);
 }
 
-function productTitleAliases(title: string): string[] {
-  const normalized = normalizeProductText(title);
-  const withoutBadges = normalizeProductText(
-    title
-      .replace(/【[^】]*】/g, "")
-      .replace(/\[[^\]]*]/g, "")
-      .replace(/（[^）]*）/g, "")
-      .replace(/\([^)]*\)/g, ""),
-  );
-  return uniqueIds([normalized, withoutBadges]).filter(Boolean);
-}
-
-function normalizeProductText(value: string): string {
-  return value.replace(/\s+/g, "").replace(/[，。！？、,.!?*#\-—~～"'“”‘’：:]/g, "");
-}
-
-function replyMentionsOrdinal(reply: string, ordinal: number): boolean {
+function replyOrdinalIndex(reply: string, ordinal: number): number {
   const chinese = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][ordinal];
-  return new RegExp(`第\\s*(?:${ordinal}${chinese ? `|${chinese}` : ""})\\s*[个款]`).test(reply);
+  const match = reply.match(new RegExp(`第\\s*(?:${ordinal}${chinese ? `|${chinese}` : ""})\\s*[个款]`));
+  return match?.index ?? -1;
 }
 
 function referencedProductIds(
@@ -664,7 +668,10 @@ function currentToolBatchHasFinalSelect(messages: BaseMessage[]): boolean {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!ToolMessage.isInstance(message)) return false;
-    if (message.name === SELECT_PRODUCTS_TOOL_NAME) return true;
+    if (message.name === SELECT_PRODUCTS_TOOL_NAME) {
+      const result = parseToolResult<SelectProductsResult>(message);
+      return Boolean(result && result.status !== "error");
+    }
   }
   return false;
 }

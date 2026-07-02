@@ -15,7 +15,7 @@ export class MerchantsController {
 
   @Post("scan")
   @UseGuards(OptionalAuthGuard)
-  @ApiOperation({ summary: "解析商家太阳码并按登录态创建新会话" })
+  @ApiOperation({ summary: "解析商家太阳码并按登录态获取会话" })
   scan(@Body() dto: ScanMerchantDto, @Req() request: Request) {
     return this.merchants.scan(dto.scene, request.user?.id);
   }
@@ -23,7 +23,7 @@ export class MerchantsController {
   @Get(":merchantId/guide-info")
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "获取商家导购页信息并创建新会话" })
+  @ApiOperation({ summary: "获取商家导购页信息并按时间窗口获取会话" })
   guideInfo(@Param("merchantId") merchantId: string, @CurrentUser() user: AuthUser) {
     return this.merchants.guideInfo(merchantId, user.id);
   }

@@ -6,6 +6,7 @@ import {
 } from "./select-products.contract";
 import { normalizeGuideReply } from "../guide-reply-format";
 import { ProductSnapshot } from "../guide-state";
+import { normalizeProductText, productTitleMatchIndex } from "../product-text";
 
 @Injectable()
 export class SelectProductsService implements SelectProductsExecutor {
@@ -14,6 +15,9 @@ export class SelectProductsService implements SelectProductsExecutor {
     if (sizeResult) return sizeResult;
 
     const reply = normalizeGuideReply(input.reply);
+    const deliveryResult = buildDeliveryUnsupportedResult(input);
+    if (deliveryResult) return deliveryResult;
+
     const explicitProductIds = uniqueIds(input.productIds);
     const productIds = (
       explicitProductIds.length > 0
@@ -69,7 +73,8 @@ export class SelectProductsService implements SelectProductsExecutor {
   }
 }
 
-const MAX_SELECTED_PRODUCTS = 10;
+const MAX_SELECTED_PRODUCTS = 5;
+const MAX_DELIVERY_FALLBACK_PRODUCTS = 3;
 
 function uniqueIds(ids: string[]): string[] {
   return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
@@ -92,27 +97,104 @@ function emptyAnswerType(
 
 function productIdsMentionedInReply(reply: string, products: ProductSnapshot[]): string[] {
   const normalizedReply = normalizeProductText(reply);
-  return products.flatMap((product) => {
-    const aliases = productTitleAliases(product.title);
-    const mentioned = aliases.some((alias) => alias.length >= 2 && normalizedReply.includes(alias));
-    return mentioned ? [product.id] : [];
-  });
+  return products
+    .map((product) => ({
+      id: product.id,
+      index: productTitleMatchIndex(normalizedReply, product.title),
+    }))
+    .filter((item) => item.index < Number.POSITIVE_INFINITY)
+    .sort((left, right) => left.index - right.index)
+    .map((item) => item.id);
 }
 
-function productTitleAliases(title: string): string[] {
-  const normalized = normalizeProductText(title);
-  const withoutBadges = normalizeProductText(
-    title
-      .replace(/【[^】]*】/g, "")
-      .replace(/\[[^\]]*]/g, "")
-      .replace(/（[^）]*）/g, "")
-      .replace(/\([^)]*\)/g, ""),
+function buildDeliveryUnsupportedResult(
+  input: SelectProductsExecutionInput,
+): SelectProductsResult | undefined {
+  const question = input.question?.trim() || "";
+  if (!isDeliveryQuestion(question) || input.productIds.length > 0) return undefined;
+
+  const preferredProducts = selectProductsByPreference(
+    question,
+    input.products.items,
+    MAX_DELIVERY_FALLBACK_PRODUCTS,
   );
-  return uniqueIds([normalized, withoutBadges]);
+  const products = preferredProducts.length > 0
+    ? preferredProducts
+    : input.currentProducts.items.slice(0, MAX_DELIVERY_FALLBACK_PRODUCTS);
+  if (products.length === 0) return undefined;
+
+  return {
+    status: "success",
+    products,
+    reply: buildDeliveryUnsupportedReply(products, preferredProducts.length > 0),
+    productIds: products.map((product) => product.id),
+    answerType: "unsupported_fact",
+    reason: "配送或送达能力暂时无法确认，保留相关商品供用户查看",
+  };
 }
 
-function normalizeProductText(value: string): string {
-  return value.replace(/\s+/g, "").replace(/[，。！？、,.!?*#\-—~～"'“”‘’：:]/g, "");
+function isDeliveryQuestion(question: string): boolean {
+  return /(送过来|送来|配送|送货|外送|送到|送达|能送|可以送|邮寄|快递|到家)/.test(question);
+}
+
+function selectProductsByPreference(
+  question: string,
+  products: ProductSnapshot[],
+  limit: number,
+): ProductSnapshot[] {
+  const keywords = preferenceKeywords(question);
+  if (keywords.length === 0) return [];
+  return products
+    .map((product) => ({ product, score: productPreferenceScore(product, keywords) }))
+    .filter((item) => item.score > 0)
+    .sort((left, right) =>
+      right.score - left.score ||
+      (right.product.minPrice || 0) - (left.product.minPrice || 0)
+    )
+    .slice(0, limit)
+    .map((item) => item.product);
+}
+
+function preferenceKeywords(question: string): string[] {
+  const groups: Array<[RegExp, string[]]> = [
+    [/巧克力|黑巧|生巧|可可|梦龙/, ["巧克力", "黑巧", "生巧", "可可", "梦龙"]],
+    [/水果|果味|草莓|杨梅|树莓|覆盆子|荔枝|芒果|柚子/, ["水果", "果", "草莓", "杨梅", "树莓", "覆盆子", "荔枝", "芒果", "柚子"]],
+    [/抹茶/, ["抹茶"]],
+    [/奥利奥/, ["奥利奥"]],
+    [/奶油/, ["奶油"]],
+    [/榴莲/, ["榴莲"]],
+    [/长辈|老人|父母|爸妈|妈妈|爸爸/, ["送长辈", "长辈", "老人", "父母", "爸妈", "妈妈", "爸爸"]],
+    [/女友|女生|女士/, ["女友", "女生", "女士", "送女神"]],
+    [/男友|男生|男士/, ["男友", "男生", "男士"]],
+    [/儿童|宝宝|孩子|小孩/, ["儿童", "宝宝", "孩子", "小孩"]],
+  ];
+  return uniqueIds(groups.flatMap(([pattern, keywords]) => pattern.test(question) ? keywords : []));
+}
+
+function productPreferenceScore(product: ProductSnapshot, keywords: string[]): number {
+  const title = normalizeProductText(product.title);
+  const category = normalizeProductText(product.category || "");
+  const tags = normalizeProductText((product.tags || []).join(" "));
+  const details = normalizeProductText([product.summary, product.details].filter(Boolean).join(" "));
+  return keywords.reduce((score, keyword) => {
+    const normalized = normalizeProductText(keyword);
+    if (!normalized) return score;
+    if (title.includes(normalized)) return score + 6;
+    if (category.includes(normalized)) return score + 4;
+    if (tags.includes(normalized)) return score + 3;
+    if (details.includes(normalized)) return score + 1;
+    return score;
+  }, 0);
+}
+
+function buildDeliveryUnsupportedReply(products: ProductSnapshot[], matchedPreference: boolean): string {
+  const intro = "配送/送达我这边暂时无法确认，建议在商品详情页查看下单和配送信息。";
+  const productIntro = matchedPreference ? "你这个口味方向可以先看：" : "你刚才看的商品可以先确认：";
+  const lines = products.map((product, index) => {
+    const price = product.priceText ? ` ${product.priceText}` : "";
+    return `${index + 1}. ${product.title}${price}`;
+  });
+  return `${intro}\n${productIntro}\n${lines.join("\n")}`;
 }
 
 type SizeMode = "max" | "min";

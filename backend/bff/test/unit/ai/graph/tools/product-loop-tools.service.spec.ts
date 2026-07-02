@@ -144,14 +144,75 @@ describe("product loop tools", () => {
     expect(result.productIds).toEqual(["p1", "p2"]);
   });
 
-  it("accepts more than five selected product ids instead of failing schema validation", async () => {
-    const parsed = SelectProductsInputSchema.parse({
+  it("keeps product cards for flavor preference plus delivery questions", async () => {
+    const service = new SelectProductsService();
+
+    const result = await service.execute({
+      productIds: [],
+      reply: "我暂时没能确认到可展示的商品，可以换个口味、预算或商品类型再试试。",
+      answerType: "no_match",
+      question: "要巧克力的吧，你能给我送过来吗",
+      products: {
+        items: [
+          {
+            id: "chocolate-product",
+            title: "法芙娜梦龙生巧/巧克力脑袋",
+            category: "男士蛋糕",
+            priceText: "¥158-¥398",
+            tags: ["巧克力"],
+            details: "巧克力爱好者狂喜",
+            minPrice: 158,
+          },
+          {
+            id: "matcha-product",
+            title: "抹茶栗子",
+            category: "送长辈",
+            priceText: "¥128-¥378",
+            tags: ["抹茶"],
+          },
+        ],
+      },
+      currentProducts: { items: [] },
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.answerType).toBe("unsupported_fact");
+    expect(result.productIds).toEqual(["chocolate-product"]);
+    expect(result.reply).toContain("配送/送达我这边暂时无法确认");
+    expect(result.reply).toContain("法芙娜梦龙生巧/巧克力脑袋");
+  });
+
+  it("rejects more than five selected product ids at the tool schema boundary", async () => {
+    const parsed = SelectProductsInputSchema.safeParse({
       productIds: ["p1", "p2", "p3", "p4", "p5", "p6", "p7"],
       reply: "推荐这几款平价蛋糕。",
       answerType: "recommendation",
     });
 
-    expect(parsed.productIds).toHaveLength(7);
+    expect(parsed.success).toBe(false);
+  });
+
+  it("orders inferred product cards by the reply mention order and caps them to five", async () => {
+    const service = new SelectProductsService();
+
+    const result = await service.execute({
+      productIds: [],
+      reply: "推荐这几款：\n1. 蛋糕三\n2. 蛋糕一\n3. 蛋糕六\n4. 蛋糕二\n5. 蛋糕四\n6. 蛋糕五",
+      answerType: "recommendation",
+      products: {
+        items: [
+          { id: "p1", title: "蛋糕一", priceText: "¥101" },
+          { id: "p2", title: "蛋糕二", priceText: "¥102" },
+          { id: "p3", title: "蛋糕三", priceText: "¥103" },
+          { id: "p4", title: "蛋糕四", priceText: "¥104" },
+          { id: "p5", title: "蛋糕五", priceText: "¥105" },
+          { id: "p6", title: "蛋糕六", priceText: "¥106" },
+        ],
+      },
+      currentProducts: { items: [] },
+    });
+
+    expect(result.productIds).toEqual(["p3", "p1", "p6", "p2", "p4"]);
   });
 
   it("does not add product cards for assortment overview replies", async () => {

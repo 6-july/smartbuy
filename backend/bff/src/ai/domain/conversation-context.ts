@@ -10,17 +10,6 @@ const PRODUCT_DETAIL_PATTERN =
 const PRODUCT_SWITCH_PATTERN =
   /(换一?[个款]|换成|换别的|其他款|其它款|另外一款|重新推荐|不要这|不喜欢这|类似的|便宜点的|贵一点的|还有吗|还有别的|再来一?[个款])/;
 
-export function isContextualFollowUp(question: string, hasRecentProducts: boolean): boolean {
-  if (!hasRecentProducts) return false;
-  const normalized = question.trim();
-  return (
-    CONTEXT_REFERENCE_PATTERN.test(normalized) ||
-    SHORT_DETAIL_PATTERN.test(normalized) ||
-    PRODUCT_DETAIL_PATTERN.test(normalized) ||
-    PRODUCT_SWITCH_PATTERN.test(normalized)
-  );
-}
-
 export function isProductDetailFollowUp(
   question: string,
   hasRecentProducts: boolean,

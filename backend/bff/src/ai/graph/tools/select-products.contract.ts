@@ -7,8 +7,8 @@ export const SELECT_PRODUCTS_TOOL_NAME = "select_products";
 export const SelectProductsInputSchema = z.object({
   productIds: z
     .array(z.string().trim().min(1))
-    .max(20)
-    .describe("从商品池中选中的商品ID列表。推荐/详情/实时信息回复必须传商品ID；no_match/clarification 可传空数组。允许多传，系统会在执行时做展示数量裁剪"),
+    .max(5)
+    .describe("从商品池中选中的商品ID列表，最多5个。推荐/详情/实时信息回复必须传商品ID；no_match/clarification 可传空数组。数量和顺序必须与 reply 中实际推荐的商品完全一致"),
   reply: z
     .string()
     .trim()
@@ -23,8 +23,6 @@ export const SelectProductsInputSchema = z.object({
     .optional()
     .describe("选择这些商品的原因，例如：用户询问最便宜的蛋糕"),
 });
-
-export type SelectProductsInput = z.infer<typeof SelectProductsInputSchema>;
 
 export type SelectProductsStatus = "success" | "empty" | "invalid" | "error";
 
@@ -70,14 +68,14 @@ export const selectProductsToolDefinition = {
         productIds: {
           type: "array",
           items: { type: "string" },
-          maxItems: 20,
+          maxItems: 5,
           description:
-            "要展示的商品ID列表。正文介绍几款商品，这里就传几款商品；只传1个ID时正文只能介绍这1款。没有匹配或需要追问时传空数组。系统最终会裁剪展示数量，不要为了凑数传无关商品。",
+            "要展示的商品ID列表，最多5个。正文介绍几款商品，这里就传几款商品；数量和顺序必须与正文完全一致。只传1个ID时正文只能介绍这1款。没有匹配或需要追问时传空数组。",
         },
         reply: {
           type: "string",
           description:
-            "最终回复给用户的中文纯文本文案。必须只描述 productIds 对应商品，不要提未选择商品，不要暴露商品ID；不要使用 HTML、<br>、Markdown 加粗、标题、表格或字面量 \\n。多规格/多商品请用真实换行和 1. 2. 3. 编号。",
+            "最终回复给用户的中文纯文本文案。最多推荐5款商品；必须只描述 productIds 对应商品，且顺序一致，不要提未选择商品，不要暴露商品ID；不要使用 HTML、<br>、Markdown 加粗、标题、表格或字面量 \\n。多规格/多商品请用真实换行和 1. 2. 3. 编号。",
         },
         answerType: {
           type: "string",

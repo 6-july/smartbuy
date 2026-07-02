@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { HttpStatus, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AppException } from "../common/app-exception";
+import { AppEnv } from "../config/env";
 import { DatabaseService } from "../database/database.service";
 import { CreateMerchantDto } from "./dto/create-merchant.dto";
 
@@ -23,6 +25,7 @@ export interface MerchantRow {
 export class MerchantsService {
   constructor(
     private readonly database: DatabaseService,
+    private readonly config: ConfigService<AppEnv, true>,
   ) {}
 
   async create(dto: CreateMerchantDto) {
@@ -54,13 +57,13 @@ export class MerchantsService {
     if (!userId) {
       return { merchantId: merchant.id, conversationId: null, needLogin: true };
     }
-    const conversationId = await this.createConversation(userId, merchant.id);
+    const conversationId = await this.getOrCreateConversation(userId, merchant.id);
     return { merchantId: merchant.id, conversationId, needLogin: false };
   }
 
   async guideInfo(merchantId: string, userId: string) {
     const merchant = await this.findEnabledById(merchantId);
-    const conversationId = await this.createConversation(userId, merchant.id);
+    const conversationId = await this.getOrCreateConversation(userId, merchant.id);
     return {
       merchant: this.mapMerchant(merchant),
       recommendQuestions: merchant.recommend_questions,
@@ -106,7 +109,27 @@ export class MerchantsService {
     return merchant;
   }
 
-  private async createConversation(userId: string, merchantId: string): Promise<string> {
+  private async getOrCreateConversation(userId: string, merchantId: string): Promise<string> {
+    const reuseWindowMinutes = this.config.get("conversationReuseWindowMinutes", { infer: true });
+    const reusable = await this.database.query<{ id: string }>(
+      `SELECT id FROM conversations
+       WHERE user_id = $1
+         AND merchant_id = $2
+         AND status = 'active'
+         AND updated_at >= now() - ($3::int * interval '1 minute')
+       ORDER BY updated_at DESC, created_at DESC
+       LIMIT 1`,
+      [userId, merchantId, reuseWindowMinutes],
+    );
+    const existing = reusable.rows[0];
+    if (existing) {
+      await this.database.query(
+        `UPDATE conversations SET updated_at = now() WHERE id = $1`,
+        [existing.id],
+      );
+      return existing.id;
+    }
+
     const created = await this.database.query<{ id: string }>(
       `INSERT INTO conversations (user_id, merchant_id) VALUES ($1, $2) RETURNING id`,
       [userId, merchantId],

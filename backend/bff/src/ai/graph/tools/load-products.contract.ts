@@ -11,8 +11,6 @@ export const LoadProductsInputSchema = z.object({
     .describe("本次加载商品池的原因，例如：用户想看最便宜的蛋糕"),
 });
 
-export type LoadProductsInput = z.infer<typeof LoadProductsInputSchema>;
-
 export type LoadProductsStatus = "success" | "empty" | "error";
 
 export interface LoadProductsResult {

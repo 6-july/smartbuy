@@ -14,6 +14,7 @@ export interface AppEnv {
   langfuseBaseUrl: string;
   langfuseExportMode: "batched" | "immediate";
   youzanProductPathTemplate: string;
+  conversationReuseWindowMinutes: number;
   messageProcessingTimeoutSeconds: number;
 }
 
@@ -50,6 +51,10 @@ export function loadEnv(): AppEnv {
     youzanProductPathTemplate:
       process.env.PRODUCT_PATH_TEMPLATE_YOUZAN ||
       "/pages/goods/detail/index?alias={alias}",
+    conversationReuseWindowMinutes: positiveNumber(
+      process.env.CONVERSATION_REUSE_WINDOW_MINUTES,
+      30,
+    ),
     messageProcessingTimeoutSeconds: positiveNumber(
       process.env.MESSAGE_PROCESSING_TIMEOUT_SECONDS,
       120,

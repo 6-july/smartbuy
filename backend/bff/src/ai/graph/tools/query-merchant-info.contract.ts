@@ -11,8 +11,6 @@ export const QueryMerchantInfoInputSchema = z.object({
     .describe("完整商家信息咨询需求，例如：商家联系电话是多少"),
 });
 
-export type QueryMerchantInfoInput = z.infer<typeof QueryMerchantInfoInputSchema>;
-
 export type MerchantInfoStatus = "success" | "empty" | "unsupported" | "error";
 
 export interface MerchantInfoItem {
