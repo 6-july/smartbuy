@@ -37,6 +37,11 @@ export interface CurrentProductContext {
   focusedId?: string;
 }
 
+export interface FinalAnswerContext {
+  reply: string;
+  productIds: string[];
+}
+
 export const GuideStateAnnotation = Annotation.Root({
   sessionId: Annotation<string | undefined>({
     reducer: (left, right) => right ?? left,
@@ -62,6 +67,10 @@ export const GuideStateAnnotation = Annotation.Root({
       focusedId: right?.focusedId ?? left.focusedId,
     }),
     default: () => ({ items: [] }),
+  }),
+  finalAnswer: Annotation<FinalAnswerContext | null>({
+    reducer: (_, right) => right ?? null,
+    default: () => null,
   }),
 });
 

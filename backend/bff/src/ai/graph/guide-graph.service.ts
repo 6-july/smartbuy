@@ -20,16 +20,10 @@ import {
 } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatModelService } from "../chat-model.service";
-import {
-  ChatMessage,
-  isProductDetailFollowUp,
-  RecentProductReference,
-  resolveReferencedProductIds,
-} from "../domain";
+import { ChatMessage, RecentProductReference } from "../domain";
 import { createLangfuseCallbacks } from "../../observability/langfuse";
 import { buildGuideSystemPrompt } from "./guide-prompt";
 import { GuideFinalOutput, parseGuideFinalOutput } from "./guide-output";
-import { normalizeProductText, productTitleMatchIndex } from "./product-text";
 import {
   CurrentProductContext,
   GuideStateAnnotation,
@@ -52,10 +46,8 @@ import {
 } from "./tools/load-products.contract";
 import { LoadProductsService } from "./tools/load-products.service";
 import {
-  SELECT_PRODUCTS_TOOL_NAME,
+  SelectProductsExecutionInput,
   SelectProductsResult,
-  selectProductsToolDefinition,
-  SelectProductsInputSchema,
 } from "./tools/select-products.contract";
 import { SelectProductsService } from "./tools/select-products.service";
 
@@ -103,6 +95,7 @@ export class GuideGraphService {
         new HumanMessage(input.question),
       ],
       currentProducts: toCurrentProductContext(input.recentProducts || []),
+      finalAnswer: null,
     };
     const state = await graph.invoke(initialState, {
       configurable: {
@@ -128,13 +121,12 @@ export class GuideGraphService {
       runName: "smartbuy-guide-graph",
       tags: ["smartbuy", "guide", "langgraph"],
     });
-    const output = resolveGuideFinalOutput(state);
-    const allowed = new Set(state.currentProducts.items.map((product) => product.id));
-    const productIds = resolveResponseProductIds(output, state, allowed, input.question);
-    const reply = resolveResponseReply(output.reply, state);
+    if (!state.finalAnswer) {
+      throw new Error("Guide graph did not finalize an answer");
+    }
     return {
-      reply,
-      productIds,
+      reply: state.finalAnswer.reply,
+      productIds: state.finalAnswer.productIds,
     };
   }
 
@@ -150,7 +142,6 @@ export class GuideGraphService {
         ],
         [
           loadProductsToolDefinition,
-          selectProductsToolDefinition,
           queryMerchantInfoToolDefinition,
         ],
         forcedToolChoice ? { toolChoice: forcedToolChoice } : undefined,
@@ -158,21 +149,41 @@ export class GuideGraphService {
       return { messages: [response] };
     };
 
+    const finalizeNode = async (state: GuideStateValue) => {
+      const output = parseSafeGuideFinalOutput(state.messages.at(-1));
+      const reply = resolveResponseReply(output.reply, state);
+      const result = await this.runProductFinalizer(
+        {
+          reply,
+          productIds: output.productIds,
+        },
+        state,
+      );
+      return {
+        finalAnswer: {
+          reply: result.reply,
+          productIds: result.productIds,
+        },
+        currentProducts: applyCurrentProductContext(state.currentProducts, result),
+      };
+    };
+
     const shouldContinue = (state: GuideStateValue) => {
       const last = state.messages.at(-1);
-      if (!AIMessage.isInstance(last)) return END;
-      return last.tool_calls?.some((call) => isGuideToolName(call.name)) ? "tools" : END;
-    };
-    const afterTools = (state: GuideStateValue) => {
-      return currentToolBatchHasFinalSelect(state.messages) ? END : "agent";
+      if (!AIMessage.isInstance(last)) return "finalize";
+      return last.tool_calls?.some((call) => isGuideToolName(call.name))
+        ? "tools"
+        : "finalize";
     };
 
     return new StateGraph(GuideStateAnnotation)
       .addNode("agent", agentNode)
       .addNode("tools", toolNode)
+      .addNode("finalize", finalizeNode)
       .addEdge(START, "agent")
-      .addConditionalEdges("agent", shouldContinue, { tools: "tools", [END]: END })
-      .addConditionalEdges("tools", afterTools, { agent: "agent", [END]: END })
+      .addConditionalEdges("agent", shouldContinue, { tools: "tools", finalize: "finalize" })
+      .addEdge("tools", "agent")
+      .addEdge("finalize", END)
       .compile({ checkpointer: this.checkpointer });
   }
 
@@ -197,26 +208,6 @@ export class GuideGraphService {
       },
     );
 
-    const selectProductsTool = tool(
-      async (args, config) => {
-        const state = getCurrentTaskInput<GuideStateValue>();
-        const result = await this.runSelectProductsTool(args, state);
-        return new Command({
-          update: {
-            messages: [
-              toToolMessage(getToolCallId(config), SELECT_PRODUCTS_TOOL_NAME, result),
-            ],
-            currentProducts: applyCurrentProductContext(state.currentProducts, result),
-          },
-        });
-      },
-      {
-        name: SELECT_PRODUCTS_TOOL_NAME,
-        description: selectProductsToolDefinition.function.description,
-        schema: SelectProductsInputSchema,
-      },
-    );
-
     const queryMerchantInfoTool = tool(
       async (args, config) => {
         const state = getCurrentTaskInput<GuideStateValue>();
@@ -236,7 +227,7 @@ export class GuideGraphService {
       },
     );
 
-    return [loadProductsTool, selectProductsTool, queryMerchantInfoTool];
+    return [loadProductsTool, queryMerchantInfoTool];
   }
 
   private async runLoadProductsTool(
@@ -257,26 +248,14 @@ export class GuideGraphService {
     }
   }
 
-  private async runSelectProductsTool(
-    args: {
-      productIds: string[];
-      reply: string;
-      answerType:
-        | "recommendation"
-        | "product_detail"
-        | "unsupported_fact"
-        | "product_overview"
-        | "no_match"
-        | "clarification";
-      reason?: string;
-    },
+  private async runProductFinalizer(
+    args: Omit<SelectProductsExecutionInput, "question" | "products" | "currentProducts">,
     state: GuideStateValue,
   ): Promise<SelectProductsResult> {
     try {
       return await this.selectProducts.execute({
         productIds: args.productIds,
         reply: args.reply,
-        answerType: args.answerType,
         question: lastHumanMessageText(state.messages),
         products: state.products,
         currentProducts: state.currentProducts,
@@ -288,8 +267,7 @@ export class GuideGraphService {
         products: [],
         reply: "我暂时没能完成这次查询，可以换个口味、预算或商品类型再试试。",
         productIds: [],
-        answerType: "no_match",
-        reason: error instanceof Error ? error.message : "select_products 执行失败",
+        reason: error instanceof Error ? error.message : "商品结果整理失败",
       };
     }
   }
@@ -368,23 +346,18 @@ function applyCurrentProductContext(
 }
 
 function isGuideToolName(name: string | undefined): boolean {
-  return (
-    name === LOAD_PRODUCTS_TOOL_NAME ||
-    name === SELECT_PRODUCTS_TOOL_NAME ||
-    name === QUERY_MERCHANT_INFO_TOOL_NAME
-  );
+  return name === LOAD_PRODUCTS_TOOL_NAME || name === QUERY_MERCHANT_INFO_TOOL_NAME;
 }
 
-function resolveGuideFinalOutput(state: GuideStateValue): GuideFinalOutput {
-  const selectResult = currentTurnSelectProductsResult(state.messages);
-  if (selectResult) {
+function parseSafeGuideFinalOutput(message: BaseMessage | undefined): GuideFinalOutput {
+  try {
+    return parseGuideFinalOutput(message);
+  } catch {
     return {
-      reply: selectResult.reply,
-      productIds: selectResult.productIds,
-      answerType: selectResult.answerType,
+      reply: "我暂时没能完成这次查询，可以换个口味、预算或商品类型再试试。",
+      productIds: [],
     };
   }
-  return parseGuideFinalOutput(state.messages.at(-1));
 }
 
 function resolveResponseReply(reply: string, state: GuideStateValue): string {
@@ -402,7 +375,7 @@ function resolveResponseReply(reply: string, state: GuideStateValue): string {
 function productToolChoiceForState(state: GuideStateValue):
   | {
       type: "function";
-      function: { name: typeof LOAD_PRODUCTS_TOOL_NAME | typeof SELECT_PRODUCTS_TOOL_NAME };
+      function: { name: typeof LOAD_PRODUCTS_TOOL_NAME };
     }
   | undefined {
   const lastHumanIndex = findLastHumanMessageIndex(state.messages);
@@ -415,18 +388,7 @@ function productToolChoiceForState(state: GuideStateValue):
     return undefined;
   }
 
-  const messagesAfterLastHuman = state.messages.slice(lastHumanIndex + 1);
-  const alreadySelectedProducts = messagesAfterLastHuman.some((message) =>
-    ToolMessage.isInstance(message) && message.name === SELECT_PRODUCTS_TOOL_NAME
-  );
-  if (alreadySelectedProducts) return undefined;
-
-  if (state.products.items.length > 0) {
-    return {
-      type: "function",
-      function: { name: SELECT_PRODUCTS_TOOL_NAME },
-    };
-  }
+  if (state.products.items.length > 0) return undefined;
 
   const alreadyLoadedProducts = state.messages
     .slice(lastHumanIndex + 1)
@@ -489,205 +451,6 @@ function previousAssistantText(messages: BaseMessage[], beforeIndex: number): st
   return "";
 }
 
-function resolveResponseProductIds(
-  output: { reply: string; answerType: string; productIds: string[] },
-  state: GuideStateValue,
-  allowed: Set<string>,
-  question: string,
-): string[] {
-  const toolIds = currentTurnProductToolIds(state.messages, allowed);
-  if (
-    output.answerType === "product_overview" ||
-    isProductOverviewQuestion(question)
-  ) {
-    return [];
-  }
-
-  if (shouldAttachProductCards(output.answerType)) {
-    const ids = output.productIds.filter((id) => allowed.has(id));
-    if (toolIds.length > 0) {
-      const idsFromCurrentTool = ids.filter((id) => toolIds.includes(id));
-      if (idsFromCurrentTool.length > 0) {
-        return alignProductIdsWithReply(output.reply, idsFromCurrentTool, state.currentProducts, allowed);
-      }
-      return alignProductIdsWithReply(output.reply, toolIds, state.currentProducts, allowed);
-    }
-    if (ids.length > 0) {
-      return alignProductIdsWithReply(output.reply, ids, state.currentProducts, allowed);
-    }
-    if (state.currentProducts.focusedId && allowed.has(state.currentProducts.focusedId)) {
-      return alignProductIdsWithReply(
-        output.reply,
-        [state.currentProducts.focusedId],
-        state.currentProducts,
-        allowed,
-      );
-    }
-  }
-
-  if (toolIds.length > 0) {
-    return alignProductIdsWithReply(output.reply, toolIds, state.currentProducts, allowed);
-  }
-
-  if (output.answerType === "merchant_info" || output.answerType === "no_match") {
-    return [];
-  }
-  return alignProductIdsWithReply(
-    output.reply,
-    referencedProductIds(question, state.currentProducts, allowed),
-    state.currentProducts,
-    allowed,
-  );
-}
-
-function shouldAttachProductCards(answerType: string): boolean {
-  return (
-    answerType === "recommendation" ||
-    answerType === "product_detail" ||
-    answerType === "unsupported_fact"
-  );
-}
-
-function isProductOverviewQuestion(question: string): boolean {
-  const normalized = question.trim();
-  return /(?:除了.+还(?:有|卖)什么|还(?:有|卖)什么|都(?:有|卖)什么|卖什么|有哪些(?:品类|种类|类型)|有什么(?:品类|种类|类型))/.test(normalized) &&
-    !/(推荐|帮我.*(?:选|找|看)|哪个好|哪款|多少钱|价格|尺寸|适合|口味)/.test(normalized);
-}
-
-function uniqueIds(ids: string[]): string[] {
-  return [...new Set(ids)];
-}
-
-function alignProductIdsWithReply(
-  reply: string,
-  candidateIds: string[],
-  products: CurrentProductContext,
-  allowed: Set<string>,
-): string[] {
-  const uniqueCandidateIds = uniqueIds(candidateIds).filter((id) => allowed.has(id));
-  if (uniqueCandidateIds.length <= 1) return uniqueCandidateIds;
-
-  const mentionedIds = productIdsMentionedInReply(reply, products, allowed);
-  const alignedIds = mentionedIds.filter((id) => uniqueCandidateIds.includes(id));
-  return alignedIds.length > 0 ? alignedIds.slice(0, 5) : uniqueCandidateIds.slice(0, 5);
-}
-
-function productIdsMentionedInReply(
-  reply: string,
-  products: CurrentProductContext,
-  allowed: Set<string>,
-): string[] {
-  const normalizedReply = normalizeProductText(reply);
-  const titleMatches: Array<{ id: string; index: number }> = [];
-  products.items.forEach((product) => {
-    if (!allowed.has(product.id)) return;
-    const index = productTitleMatchIndex(normalizedReply, product.title);
-    if (
-      index < Number.POSITIVE_INFINITY &&
-      !titleMatches.some((item) => item.id === product.id)
-    ) {
-      titleMatches.push({ id: product.id, index });
-    }
-  });
-  if (titleMatches.length > 0) {
-    return titleMatches
-      .sort((left, right) => left.index - right.index)
-      .map((item) => item.id);
-  }
-
-  const ordinalMatches: Array<{ id: string; index: number }> = [];
-  products.items.forEach((product, index) => {
-    if (!allowed.has(product.id)) return;
-    const ordinalIndex = replyOrdinalIndex(reply, index + 1);
-    if (
-      ordinalIndex >= 0 &&
-      !ordinalMatches.some((item) => item.id === product.id)
-    ) {
-      ordinalMatches.push({ id: product.id, index: ordinalIndex });
-    }
-  });
-  return ordinalMatches
-    .sort((left, right) => left.index - right.index)
-    .map((item) => item.id);
-}
-
-function replyOrdinalIndex(reply: string, ordinal: number): number {
-  const chinese = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][ordinal];
-  const match = reply.match(new RegExp(`第\\s*(?:${ordinal}${chinese ? `|${chinese}` : ""})\\s*[个款]`));
-  return match?.index ?? -1;
-}
-
-function referencedProductIds(
-  question: string,
-  products: CurrentProductContext,
-  allowed: Set<string>,
-): string[] {
-  const references = products.items
-    .filter((product) => allowed.has(product.id))
-    .map((product) => ({
-      id: product.id,
-      name: product.title,
-    }));
-  if (!isProductDetailFollowUp(question, references.length > 0)) return [];
-
-  const normalized = question.replace(/\s+/g, "");
-  const namedIds = references
-    .filter((product) => product.name && normalized.includes(product.name.replace(/\s+/g, "")))
-    .map((product) => product.id);
-  if (namedIds.length > 0) return uniqueIds(namedIds);
-
-  const referencedIds = resolveReferencedProductIds(question, references)
-    .filter((id) => allowed.has(id));
-  if (referencedIds.length === 1) return referencedIds;
-
-  if (products.items.length === 1 && products.focusedId && allowed.has(products.focusedId)) {
-    return [products.focusedId];
-  }
-  return [];
-}
-
-function currentTurnProductToolIds(
-  messages: BaseMessage[],
-  allowed: Set<string>,
-): string[] {
-  const ids: string[] = [];
-  for (const message of messages) {
-    if (!ToolMessage.isInstance(message) || message.name !== SELECT_PRODUCTS_TOOL_NAME) {
-      continue;
-    }
-    const result = parseToolResult<SelectProductsResult>(message);
-    if (result?.status !== "success" && result?.status !== "invalid") continue;
-    for (const product of result.products) {
-      if (allowed.has(product.id) && !ids.includes(product.id)) ids.push(product.id);
-    }
-  }
-  return ids;
-}
-
-function currentToolBatchHasFinalSelect(messages: BaseMessage[]): boolean {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!ToolMessage.isInstance(message)) return false;
-    if (message.name === SELECT_PRODUCTS_TOOL_NAME) {
-      const result = parseToolResult<SelectProductsResult>(message);
-      return Boolean(result && result.status !== "error");
-    }
-  }
-  return false;
-}
-
-function currentTurnSelectProductsResult(
-  messages: BaseMessage[],
-): SelectProductsResult | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!ToolMessage.isInstance(message)) break;
-    if (message.name !== SELECT_PRODUCTS_TOOL_NAME) continue;
-    return parseToolResult<SelectProductsResult>(message);
-  }
-  return undefined;
-}
-
 function currentTurnMerchantInfoResult(
   messages: BaseMessage[],
 ): QueryMerchantInfoResult | undefined {
@@ -711,11 +474,8 @@ function parseToolResult<T>(message: ToolMessage): T | undefined {
 
 function toToolMessage(
   toolCallId: string,
-  name:
-    | typeof LOAD_PRODUCTS_TOOL_NAME
-    | typeof SELECT_PRODUCTS_TOOL_NAME
-    | typeof QUERY_MERCHANT_INFO_TOOL_NAME,
-  result: LoadProductsResult | SelectProductsResult | QueryMerchantInfoResult,
+  name: typeof LOAD_PRODUCTS_TOOL_NAME | typeof QUERY_MERCHANT_INFO_TOOL_NAME,
+  result: LoadProductsResult | QueryMerchantInfoResult,
 ): ToolMessage {
   return new ToolMessage({
     name,

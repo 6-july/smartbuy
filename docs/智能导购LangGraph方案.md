@@ -433,7 +433,6 @@ interface GuideState {
     reply: string;
     productIds: string[];
     attachCards: boolean;
-    answerType: GuideAnswerType;
     evidenceIds: string[];
   } | null;
 
@@ -452,16 +451,6 @@ interface GuideState {
     status: "ok" | "error";
   }>;
 }
-
-type GuideAnswerType =
-  | "recommendation"
-  | "product_detail"
-  | "category"
-  | "contact"
-  | "chitchat"
-  | "clarification"
-  | "no_match"
-  | "unsupported_fact";
 ```
 
 ### 8.3 Evidence
@@ -647,16 +636,6 @@ const FinishGuideInput = z.object({
   reply: z.string().min(1).max(1200),
   productIds: z.array(z.string().uuid()).max(5),
   attachCards: z.boolean(),
-  answerType: z.enum([
-    "recommendation",
-    "product_detail",
-    "category",
-    "contact",
-    "chitchat",
-    "clarification",
-    "no_match",
-    "unsupported_fact",
-  ]),
   evidenceIds: z.array(z.string()).max(8),
 });
 ```
@@ -871,7 +850,7 @@ flowchart LR
   Agent --> Search["search_products priceMax=100"]
   Search --> Empty["products=[]"]
   Empty --> Agent
-  Agent --> Finish["finish_guide answerType=no_match"]
+  Agent --> Finish["finish_guide productIds=[]"]
   Finish --> Out["明确暂无匹配，不编造商品"]
 ```
 
@@ -1179,7 +1158,7 @@ flowchart LR
 
 | 层级 | 字段 |
 |---|---|
-| Trace | requestId、conversationId、merchantId、模型、总耗时、最终 answerType |
+| Trace | requestId、conversationId、merchantId、模型、总耗时、最终 productIds 数量 |
 | LLM Generation | 脱敏 Prompt、Tool Calls、输出、token、耗时 |
 | Tool Span | toolName、脱敏参数、matchedCount、errorCode、耗时 |
 | Validator Span | 通过/失败、规则编号、修复次数 |

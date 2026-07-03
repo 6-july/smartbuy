@@ -19,20 +19,39 @@ export class SelectProductsService implements SelectProductsExecutor {
     if (deliveryResult) return deliveryResult;
 
     const explicitProductIds = uniqueIds(input.productIds);
-    const productIds = (
-      explicitProductIds.length > 0
-        ? explicitProductIds
-        : shouldAttachCards(input.answerType)
-          ? uniqueIds(productIdsMentionedInReply(reply, input.products.items))
-          : []
-    ).slice(0, MAX_SELECTED_PRODUCTS);
+    const mentionedProductIds = productIdsMentionedInReplyContext(input, reply);
+    if (isProductOverviewQuestion(input.question || "") || looksLikeAssortmentOverviewReply(reply)) {
+      return {
+        status: "empty",
+        products: [],
+        reply,
+        productIds: [],
+        reason: "未选择任何商品",
+      };
+    }
+
+    if (
+      explicitProductIds.length > 0 &&
+      mentionedProductIds.length === 0 &&
+      !looksLikeProductCardReply(reply, input.question || "")
+    ) {
+      return {
+        status: "empty",
+        products: [],
+        reply,
+        productIds: [],
+        reason: "回复未表达具体商品推荐或商品详情",
+      };
+    }
+
+    const productIds = resolveProductIds(input, reply, explicitProductIds, mentionedProductIds)
+      .slice(0, maxSelectedProducts(input, reply));
     if (productIds.length === 0) {
       return {
         status: "empty",
         products: [],
         reply,
         productIds: [],
-        answerType: emptyAnswerType(input.answerType),
         reason: "未选择任何商品",
       };
     }
@@ -45,9 +64,9 @@ export class SelectProductsService implements SelectProductsExecutor {
       const product = productById.get(id) || currentProductById.get(id);
       return product ? [product] : [];
     });
-    const invalidProductIds = productIds.filter((id) =>
+    const invalidProductIds = uniqueIds([...productIds, ...explicitProductIds].filter((id) =>
       !productById.has(id) && !currentProductById.has(id)
-    );
+    ));
 
     if (selected.length === 0) {
       return {
@@ -55,18 +74,20 @@ export class SelectProductsService implements SelectProductsExecutor {
         products: [],
         reply: "我暂时没能确认到可展示的商品，可以换个口味、预算或商品类型再试试。",
         productIds: [],
-        answerType: "no_match",
         invalidProductIds,
         reason: "选择的商品ID不在当前商品池中",
       };
     }
 
+    const orderedSelected = explicitProductIds.length > 0
+      ? selected
+      : orderProductsByReply(reply, selected);
+
     return {
       status: invalidProductIds.length > 0 ? "invalid" : "success",
-      products: selected,
+      products: orderedSelected,
       reply,
-      productIds: selected.map((product) => product.id),
-      answerType: input.answerType,
+      productIds: orderedSelected.map((product) => product.id),
       invalidProductIds: invalidProductIds.length > 0 ? invalidProductIds : undefined,
       reason: input.reason,
     };
@@ -80,19 +101,101 @@ function uniqueIds(ids: string[]): string[] {
   return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
 }
 
-function shouldAttachCards(input: SelectProductsExecutionInput["answerType"]): boolean {
-  return (
-    input === "recommendation" ||
-    input === "product_detail" ||
-    input === "unsupported_fact"
-  );
+function productIdsMentionedInReplyContext(
+  input: SelectProductsExecutionInput,
+  reply: string,
+): string[] {
+  return uniqueIds([
+    ...productIdsMentionedInReply(reply, input.products.items),
+    ...productIdsMentionedInReply(reply, input.currentProducts.items),
+  ]);
 }
 
-function emptyAnswerType(
-  input: SelectProductsExecutionInput["answerType"],
-): SelectProductsResult["answerType"] {
-  if (input === "clarification" || input === "product_overview") return input;
-  return "no_match";
+function inferProductIds(
+  input: SelectProductsExecutionInput,
+  reply: string,
+  mentionedProductIds = productIdsMentionedInReplyContext(input, reply),
+): string[] {
+  const ids = uniqueIds(mentionedProductIds);
+  if (ids.length > 0) return ids;
+  if (input.currentProducts.focusedId && shouldUseFocusedProduct(input.question || "", reply)) {
+    return [input.currentProducts.focusedId];
+  }
+  return [];
+}
+
+function resolveProductIds(
+  input: SelectProductsExecutionInput,
+  reply: string,
+  explicitProductIds: string[],
+  mentionedProductIds: string[],
+): string[] {
+  return explicitProductIds.length > 0
+    ? explicitProductIds
+    : inferProductIds(input, reply, mentionedProductIds);
+}
+
+function maxSelectedProducts(
+  input: SelectProductsExecutionInput,
+  _reply: string,
+): number {
+  if (isSingleProductCardQuestion(input.question || "")) return 1;
+  return asksForSingleProduct(input.question || "") ? 1 : MAX_SELECTED_PRODUCTS;
+}
+
+function asksForSingleProduct(question: string): boolean {
+  return /(?:推荐|选|挑|找|看)?\s*(?:一|1)\s*[个款]|就\s*(?:一|1)\s*[个款]|只要\s*(?:一|1)\s*[个款]|一个就行|一款就行|这个就行|这款就行/.test(question);
+}
+
+function shouldUseFocusedProduct(question: string, reply: string): boolean {
+  return isProductCardTriggerQuestion(question) ||
+    isProductAttributeQuestion(question) ||
+    looksLikeProductCardReply(reply, question);
+}
+
+function isProductAttributeQuestion(question: string): boolean {
+  const normalized = question.trim();
+  if (!normalized) return false;
+  if (isProductSelectionQuestion(normalized) || isProductEntryQuestion(normalized)) return false;
+  return /(?:这个|这款|它|刚才|上面|前面|当前)?\s*(?:有几寸|几寸|尺寸|规格|够吃|够几个人|几个人吃|几人吃|适合几个人|多少钱|价格|什么价|有什么口味|有哪些口味|什么口味|口味|什么味|什么味道|味道|好吃吗|好不好吃|好吃不|好看吗|好不好看|颜值|外观|造型|拍照|上镜|甜不甜|腻不腻|口感|怎么样|推荐吗|有哪些规格)/.test(normalized) ||
+    /^\d+(?:\.\d+)?\s*寸(?:吧|的|呢|吗)?$/.test(normalized);
+}
+
+function isSingleProductCardQuestion(question: string): boolean {
+  return isProductSelectionQuestion(question) || isProductEntryQuestion(question);
+}
+
+function isProductCardTriggerQuestion(question: string): boolean {
+  return isRecommendationQuestion(question) ||
+    isProductSelectionQuestion(question) ||
+    isProductEntryQuestion(question);
+}
+
+function isRecommendationQuestion(question: string): boolean {
+  return /推荐|帮我.*(?:选|找|看|挑)|看看(?:商品|蛋糕|甜品)?|有没有|有.*(?:口味|水果|草莓|杨梅|芒果|荔枝|蛋糕)|哪(?:个|款)|哪个好|怎么选|想要|想买|来一?[个款份]|预算|便宜|贵|实惠|划算|送(?:长辈|老人|父母|爸妈|妈妈|爸爸|女友|男友|朋友|同事|客户|孩子|宝宝|小孩|女生|男生|女士|男士)|生日|纪念日/.test(question);
+}
+
+function isProductSelectionQuestion(question: string): boolean {
+  return /第\s*[一二三四五六七八九十\d]+\s*[个款]?|[一二三四五六七八九十\d]+\s*款|就\s*(?:这个|这款|它)|(?:这个|这款)\s*就行|还是\s*(?:这个|这款|刚才那个|那款)|刚才那个|我要\s*(?:这个|这款)|要\s*(?:这个|这款)|选\s*(?:这个|这款|第\s*[一二三四五六七八九十\d]+)/.test(question);
+}
+
+function isProductEntryQuestion(question: string): boolean {
+  return /商品卡片|卡片|看详情|查看详情|商品详情|看商品|查看商品|怎么买|购买|下单|我要了|要了/.test(question);
+}
+
+function looksLikeProductCardReply(reply: string, question: string): boolean {
+  return /推荐|给你(?:挑|选|找)|可以看看|优先看|这几款|这款|人气|适合|限时价|爆款|商品详情|查看商品|\n\s*\d+[.、]/.test(reply) ||
+    isProductCardTriggerQuestion(question);
+}
+
+function isProductOverviewQuestion(question: string): boolean {
+  return /(?:除了.+还(?:有|卖)什么|还(?:有|卖)什么|还有(?:其他|别的)(?:吗|么)?|其他(?:还有)?(?:什么|品类|种类|类型)|都(?:有|卖)什么|卖什么|有哪些(?:品类|种类|类型)|有什么(?:品类|种类|类型))/.test(question) &&
+    !/(推荐|帮我.*(?:选|找|看|挑)|哪个好|哪款|多少钱|价格|尺寸|适合|口味)/.test(question);
+}
+
+function looksLikeAssortmentOverviewReply(reply: string): boolean {
+  return /(?:还有|除了|店里|本店|商品|品类|类型|种类).*(?:品类|类型|种类|专区|系列|方向)|(?:按|从).*(?:口味|预算|人群|场景).*(?:挑|选|看)/.test(reply) &&
+    !/(推荐|给你(?:挑|选|找)|可以看看|优先看|这几款|\n\s*\d+[.、])/.test(reply);
 }
 
 function productIdsMentionedInReply(reply: string, products: ProductSnapshot[]): string[] {
@@ -105,6 +208,32 @@ function productIdsMentionedInReply(reply: string, products: ProductSnapshot[]):
     .filter((item) => item.index < Number.POSITIVE_INFINITY)
     .sort((left, right) => left.index - right.index)
     .map((item) => item.id);
+}
+
+function orderProductsByReply(reply: string, products: ProductSnapshot[]): ProductSnapshot[] {
+  if (products.length <= 1) return products;
+  const normalizedReply = normalizeProductText(reply);
+  const indexed = products.map((product, index) => ({
+    product,
+    sourceIndex: index,
+    replyIndex: productTitleMatchIndex(normalizedReply, product.title),
+  }));
+  if (!indexed.some((item) => item.replyIndex < Number.POSITIVE_INFINITY)) {
+    return products;
+  }
+  return indexed
+    .sort((left, right) =>
+      compareReplyIndex(left.replyIndex, right.replyIndex) ||
+      left.sourceIndex - right.sourceIndex
+    )
+    .map((item) => item.product);
+}
+
+function compareReplyIndex(left: number, right: number): number {
+  if (left === right) return 0;
+  if (left === Number.POSITIVE_INFINITY) return 1;
+  if (right === Number.POSITIVE_INFINITY) return -1;
+  return left - right;
 }
 
 function buildDeliveryUnsupportedResult(
@@ -128,7 +257,6 @@ function buildDeliveryUnsupportedResult(
     products,
     reply: buildDeliveryUnsupportedReply(products, preferredProducts.length > 0),
     productIds: products.map((product) => product.id),
-    answerType: "unsupported_fact",
     reason: "配送或送达能力暂时无法确认，保留相关商品供用户查看",
   };
 }
@@ -233,7 +361,6 @@ function buildSizeExtremeResult(input: SelectProductsExecutionInput): SelectProd
     products: bestProducts.map((record) => record.product),
     reply: buildSizeExtremeReply(mode, best.size, bestProducts),
     productIds: bestProducts.map((record) => record.product.id),
-    answerType: "product_detail",
     reason: mode === "max" ? "按商品规格计算最大尺寸" : "按商品规格计算最小尺寸",
   };
 }

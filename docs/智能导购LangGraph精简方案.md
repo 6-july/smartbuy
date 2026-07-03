@@ -440,13 +440,6 @@ flowchart TD
 interface GuideFinalOutput {
   reply: string;
   productIds: string[];
-  answerType:
-    | "recommendation"
-    | "product_detail"
-    | "clarification"
-    | "no_match"
-    | "unsupported_fact"
-    | "chitchat";
 }
 ```
 
@@ -628,4 +621,3 @@ interface MessageReply {
 - 新增硬条件和软条件规则；
 - 新增草莓味误召回、10寸后追加草莓味等多轮示例；
 - 明确向量搜索按需使用，不作为每次查询的默认必经路径。
-

@@ -303,8 +303,7 @@ Agent 最终输出：
 ```json
 {
   "reply": "回复文本",
-  "productIds": ["商品ID"],
-  "answerType": "recommendation"
+  "productIds": ["商品ID"]
 }
 ```
 
@@ -323,4 +322,3 @@ Agent 最终输出：
 LangGraph 只负责把“理解用户 → 查询商品 → 根据结果回复”编排成可控循环；
 商品事实、商家隔离、硬条件校验和卡片组装都由 Tool 和后端代码保证。
 ```
-

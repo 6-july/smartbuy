@@ -1,20 +1,9 @@
 import { AIMessage, BaseMessage } from "@langchain/core/messages";
 import { normalizeGuideReply } from "./guide-reply-format";
 
-export type GuideAnswerType =
-  | "recommendation"
-  | "product_detail"
-  | "clarification"
-  | "merchant_info"
-  | "product_overview"
-  | "no_match"
-  | "unsupported_fact"
-  | "chitchat";
-
 export interface GuideFinalOutput {
   reply: string;
   productIds: string[];
-  answerType: GuideAnswerType;
 }
 
 export function parseGuideFinalOutput(message: BaseMessage | undefined): GuideFinalOutput {
@@ -29,7 +18,6 @@ export function parseGuideFinalOutput(message: BaseMessage | undefined): GuideFi
     return {
       reply: normalizeGuideReply(content),
       productIds: [],
-      answerType: "chitchat",
     };
   }
   const parsed = JSON.parse(json) as Partial<GuideFinalOutput>;
@@ -40,7 +28,6 @@ export function parseGuideFinalOutput(message: BaseMessage | undefined): GuideFi
     productIds: Array.isArray(parsed.productIds)
       ? [...new Set(parsed.productIds.filter((id): id is string => typeof id === "string"))]
       : [],
-    answerType: isGuideAnswerType(parsed.answerType) ? parsed.answerType : "chitchat",
   };
 }
 
@@ -60,17 +47,4 @@ function extractJsonObject(content: string): string | undefined {
   const source = fenced?.[1]?.trim() || content;
   const match = source.match(/\{[\s\S]*\}/);
   return match?.[0];
-}
-
-function isGuideAnswerType(value: unknown): value is GuideAnswerType {
-  return (
-    value === "recommendation" ||
-    value === "product_detail" ||
-    value === "clarification" ||
-    value === "merchant_info" ||
-    value === "product_overview" ||
-    value === "no_match" ||
-    value === "unsupported_fact" ||
-    value === "chitchat"
-  );
 }
